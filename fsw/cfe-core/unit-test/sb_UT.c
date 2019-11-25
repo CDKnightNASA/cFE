@@ -41,6 +41,43 @@
 #include "sb_UT.h"
 
 static char    cMsg[UT_MAX_MESSAGE_LENGTH];
+int32 TestStat;
+
+static int CheckVal(const int32 ExpRtn, const int32 ActRtn, const char *Msg,
+        const char *Func, const char *Filename, const int Linenum) {
+    if (ActRtn != ExpRtn) {
+        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
+            "Unexpected value, %s, func=%s (%s:%d) exp=%d(0x%02X), act=%d(0x%02X)",
+            Msg, Func, Filename, Linenum,
+            ExpRtn, ExpRtn, ActRtn, ActRtn);
+        UT_Text(cMsg);
+        TestStat = CFE_FAIL;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+#define CHECKVAL(EXP, ACT, MSG) (CheckVal(EXP, ACT, MSG, __func__, __FILE__, __LINE__))
+
+static bool CheckEvents(int32 ExpRtn, const char *Func, const char *Filename, int Linenum) {
+    return CheckVal(ExpRtn, UT_GetNumEventsSent(), "UT_GetNumEventsSent", Func, Filename, Linenum);
+}
+#define CHECKEVENTS(EXP) (CheckEvents(EXP, __func__, __FILE__, __LINE__))
+
+static bool CheckEvent(int32 EID, bool wanted, const char *EID_STR, const char *Func, const char *Filename, const int Linenum) {
+    if(UT_EventIsInHistory(EID) == wanted) {
+        return true;
+    } else {
+        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH, "%s not sent, func=%s (%s:%d)", EID_STR, Func, Filename, Linenum);
+        UT_Text(cMsg);
+        TestStat = CFE_FAIL;
+        return false;
+    }
+}
+
+#define EVENTUNSENT(EID) (CheckEvent(EID, true, #EID, __func__, __FILE__, __LINE__))
+#define EVENTSENT(EID) (CheckEvent(EID, false, #EID, __func__, __FILE__, __LINE__))
 
 /*
 ** Functions
@@ -64,7 +101,7 @@ void OS_Application_Startup(void)
     UT_ADD_TEST(Test_SB_Utils);
     UtTest_Add(Test_SB_SpecialCases, NULL, UT_CheckForOpenSockets,
     		   "Test_SB_SpecialCases");
-    
+
     UT_ADD_TEST(Test_SB_Macros);
 
 } /* end main */
@@ -82,7 +119,7 @@ void Test_SB_Macros(void)
 
     Test_SB_CCSDSPriHdr_Macros();
     Test_SB_CCSDSSecHdr_Macros();
-    
+
 #ifdef UT_VERBOSE
     UT_Text("End Begin CCSDS Macros");
 #endif
@@ -95,163 +132,73 @@ void Test_SB_Macros(void)
 void Test_SB_CCSDSSecHdr_Macros(void)
 {
     CFE_SB_CmdHdr_t NoParamPkt;
-    
-    uint32 ExpRtn;
-    uint32 ActRtn;
-    uint32 TestStat = CFE_PASS;
+
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Test_SB_CCSDSSecHdr_Macros Test");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = 0x01;
-        
+
     CCSDS_CLR_CMDSEC_HDR(NoParamPkt.Sec);
-    
+
     CCSDS_WR_FC(NoParamPkt.Sec, 1);
-    ActRtn = CCSDS_RD_FC(NoParamPkt.Sec);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read ccsds function code test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(0x01, CCSDS_RD_FC(NoParamPkt.Sec), "write/read ccsds function code");
 
-    
     SB_ResetUnitTest();
-    ExpRtn = 0xFF;
-        
+
     CCSDS_CLR_CMDSEC_HDR(NoParamPkt.Sec);
-    
-    CCSDS_WR_CHECKSUM(NoParamPkt.Sec, 0xFF);
-    ActRtn = CCSDS_RD_CHECKSUM(NoParamPkt.Sec);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read ccsds checksum test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CCSDS_WR_CHECKSUM(NoParamPkt.Sec, 0xFF);
+    CHECKVAL(0xFF, CCSDS_RD_CHECKSUM(NoParamPkt.Sec), "write/read ccsds checksum");
+
 #ifdef MESSAGE_FORMAT_IS_CCSDS_VER_2
-    
+
     SB_ResetUnitTest();
-    ExpRtn = 0x01;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_EDS_VER(NoParamPkt.SpacePacket.ApidQ, 0x01);
-    ActRtn = CCSDS_RD_EDS_VER(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read eds version test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(0x01, CCSDS_RD_EDS_VER(NoParamPkt.SpacePacket.ApidQ),
+
     SB_ResetUnitTest();
-    ExpRtn = 0x01;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_ENDIAN(NoParamPkt.SpacePacket.ApidQ, 0x01);
-    ActRtn = CCSDS_RD_ENDIAN(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read endian flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(0x01, CCSDS_RD_ENDIAN(NoParamPkt.SpacePacket.ApidQ), "write/read endian flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 0x01;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_PLAYBACK(NoParamPkt.SpacePacket.ApidQ, 0x01);
-    ActRtn = CCSDS_RD_PLAYBACK(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read playback flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(0x01, CCSDS_RD_PLAYBACK(NoParamPkt.SpacePacket.ApidQ), "write/read playback flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 0xFF;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ, 0xFF);
-    ActRtn = CCSDS_RD_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read subsystem id test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(0xFF, CCSDS_RD_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ), "write/read subsystem id");
+
     SB_ResetUnitTest();
-    ExpRtn = 0xFF;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ, 0xFF);
-    ActRtn = CCSDS_RD_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read subsystem id test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(0xFF, CCSDS_RD_SUBSYSTEM_ID(NoParamPkt.SpacePacket.ApidQ), "write/read subsystem id");
+
     SB_ResetUnitTest();
-    ExpRtn = 0xFFFF;
-        
+
     CCSDS_CLR_SEC_APIDQ(NoParamPkt.SpacePacket.ApidQ);
-    
+
     CCSDS_WR_SYSTEM_ID(NoParamPkt.SpacePacket.ApidQ, 0xFFFF);
-    ActRtn = CCSDS_RD_SYSTEM_ID(NoParamPkt.SpacePacket.ApidQ);
-  
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read subsystem id test, "
-                   "exp=0x%04X, act= 0x%04X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(0xFFFF, CCSDS_RD_SYSTEM_ID(NoParamPkt.SpacePacket.ApidQ), "write/read system id");
+
 #endif
-    
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SB_CCSDSSecHdr_Macros", "CCSDS Secondary Header Macro Test");
 } /* end Test_SB_CCSDSSecHdr_Macros */
@@ -262,170 +209,75 @@ void Test_SB_CCSDSSecHdr_Macros(void)
 void Test_SB_CCSDSPriHdr_Macros(void)
 {
     CFE_SB_Msg_t Msg;
-    
-    
-    uint32 ExpRtn;
-    uint32 ActRtn;
-    uint32 TestStat = CFE_PASS;
+
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Test_SB_CCSDS_Macros Test");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = 0x1899;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_SID(Msg.Hdr, 0x1899);
-    ActRtn = CCSDS_RD_SID(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read stream id test, "
-                   "exp=0x%04X, act= 0x%04X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
+    CHECKVAL(0x1899, CCSDS_RD_SID(Msg.Hdr), "write/read stream id");
 
     SB_ResetUnitTest();
-    ExpRtn = 0x07FF;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_APID(Msg.Hdr, 0x07FF);
-    ActRtn = CCSDS_RD_APID(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read apid test, "
-                   "exp=0x%08X, act= 0x%08X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(0x07FF, CCSDS_RD_APID(Msg.Hdr), "write/read apid");
 
-    
     SB_ResetUnitTest();
-    ExpRtn = 1;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_SHDR(Msg.Hdr, 1);
-    
-    ActRtn = CCSDS_RD_SHDR(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read sec hdr flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
-    
+
+    CHECKVAL(1, CCSDS_RD_SHDR(Msg.Hdr), "write/read sec hdr flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 1;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_TYPE(Msg.Hdr, 1);
-    
-    ActRtn = CCSDS_RD_TYPE(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read pri hdr type flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+
+    CHECKVAL(1, CCSDS_RD_TYPE(Msg.Hdr), "write/read pri hdr type flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 1;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_VERS(Msg.Hdr, 1);
-    
-    ActRtn = CCSDS_RD_VERS(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read pri hdr version flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+
+    CHECKVAL(1, CCSDS_RD_VERS(Msg.Hdr), "write/read pri hdr version flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 0x3FFF;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_SEQ(Msg.Hdr, 0x3FFF);
-    
-    ActRtn = CCSDS_RD_SEQ(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read pri hdr sequence test, "
-                   "exp=0x%04X, act= 0x%04X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+
+    CHECKVAL(0x3FFF, CCSDS_RD_SEQ(Msg.Hdr), "write/read  pri hdr sequence");
+
     SB_ResetUnitTest();
-    ExpRtn = 0x03;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_SEQFLG(Msg.Hdr, 0x03);
-    
-    ActRtn = CCSDS_RD_SEQFLG(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read pri hdr sequence flag test, "
-                   "exp=0x%02X, act= 0x%02X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
-    
+
+    CHECKVAL(0x03, CCSDS_RD_SEQFLG(Msg.Hdr), "write/read pri hdr seq flag");
+
     SB_ResetUnitTest();
-    ExpRtn = 0xFFFF;
-    
+
     CCSDS_CLR_PRI_HDR(Msg.Hdr);
-    
+
     CCSDS_WR_LEN(Msg.Hdr, 0xFFFF);
-    
-    ActRtn = CCSDS_RD_LEN(Msg.Hdr);
-                
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from write/read pri hdr length test, "
-                   "exp=0x%04X, act= 0x%04X",
-                 (unsigned int) ExpRtn, (unsigned int) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+
+    CHECKVAL(0xFFFF, CCSDS_RD_LEN(Msg.Hdr), "write/read pri hdr length");
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SB_CCSDS_Macros", "CCSDS Macro Test");
 } /* end Test_SB_CCSDSPriHdr_Macros */
@@ -470,10 +322,8 @@ void Test_SB_AppInit(void)
 */
 void Test_SB_AppInit_ESRegFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
     int32 ForcedRtnVal = -1;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of ES_RegisterApp Failure Test");
@@ -481,30 +331,9 @@ void Test_SB_AppInit_ESRegFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_RegisterApp), 1, ForcedRtnVal);
-    ExpRtn = ForcedRtnVal;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(ForcedRtnVal, CFE_SB_AppInit(), "AppInit in ES reg error");
 
-    if (ActRtn != ForcedRtnVal)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from AppInit in ES reg error test, "
-                   "exp=%ld, act= %ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act= %ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_AppInit", "ES_RegisterApp failure");
@@ -515,9 +344,7 @@ void Test_SB_AppInit_ESRegFail(void)
 */
 void Test_SB_AppInit_EVSRegFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     int32 ForcedRtnVal = -1;
 
 #ifdef UT_VERBOSE
@@ -526,29 +353,9 @@ void Test_SB_AppInit_EVSRegFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_EVS_Register), 1, ForcedRtnVal);
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(ForcedRtnVal, CFE_SB_AppInit(), "AppInit in EVS Reg Error");
 
-    if (ActRtn != ForcedRtnVal)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from AppInit in EVS Reg Error test, "
-                   "exp=%ld, act= %ld",
-                 (long) ForcedRtnVal, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act= %ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_AppInit", "EVS register failure");
@@ -559,9 +366,7 @@ void Test_SB_AppInit_EVSRegFail(void)
 */
 void Test_SB_AppInit_EVSSendEvtFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     int32 ForcedRtnVal = -1;
     CFE_ES_TaskInfo_t TestTaskInfo;
 
@@ -583,29 +388,9 @@ void Test_SB_AppInit_EVSSendEvtFail(void)
      * (The others use SendEventWithAppID which is a different counter).
      */
     UT_SetDeferredRetcode(UT_KEY(CFE_EVS_SendEvent), 1, ForcedRtnVal);
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(ForcedRtnVal, CFE_SB_AppInit(), "EVSSendEvtFail");
 
-    if (ActRtn != ForcedRtnVal)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from AppInit in EVSSendEvtFail test, "
-                   "exp=0x%lx, act= 0x%lx",
-                 (unsigned long) ForcedRtnVal, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act= %ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
     CFE_SB_DeletePipe(CFE_SB.CmdPipe);
     UT_Report(__FILE__, __LINE__,
@@ -617,9 +402,7 @@ void Test_SB_AppInit_EVSSendEvtFail(void)
 */
 void Test_SB_AppInit_CrPipeFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of SB_CreatePipe Failure Test");
@@ -631,36 +414,11 @@ void Test_SB_AppInit_CrPipeFail(void)
      * type of error code.
      */
     UT_SetDeferredRetcode(UT_KEY(OS_QueueCreate), 1, OS_ERROR);
-    ExpRtn = CFE_SB_PIPE_CR_ERR;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(CFE_SB_PIPE_CR_ERR, CFE_SB_AppInit(), "CFE_SB_AppInit in CreatePipe Error2");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CFE_SB_AppInit in CreatePipe Error2 "
-                   "test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_CR_PIPE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_CR_PIPE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_CR_PIPE_ERR_EID);
 
     CFE_SB_DeletePipe(0);
     UT_Report(__FILE__, __LINE__,
@@ -673,9 +431,7 @@ void Test_SB_AppInit_CrPipeFail(void)
 void Test_SB_AppInit_Sub1Fail(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Subscription 1 Failure Test");
@@ -683,36 +439,11 @@ void Test_SB_AppInit_Sub1Fail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBuf), 1, -1);
-    ExpRtn = CFE_SB_BUF_ALOC_ERR;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(CFE_SB_BUF_ALOC_ERR, CFE_SB_AppInit(), "CFE_SB_AppInit in Sub1");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CFE_SB_AppInit in Sub1 test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DEST_BLK_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_DEST_BLK_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DEST_BLK_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -725,9 +456,7 @@ void Test_SB_AppInit_Sub1Fail(void)
 void Test_SB_AppInit_Sub2Fail(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Subscription 2 Failure Test");
@@ -735,36 +464,11 @@ void Test_SB_AppInit_Sub2Fail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBuf), 2, -1);
-    ExpRtn = CFE_SB_BUF_ALOC_ERR;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(CFE_SB_BUF_ALOC_ERR, CFE_SB_AppInit(), "CFE_SB_AppInit in Sub2");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CFE_SB_AppInit in Sub2 test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DEST_BLK_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_DEST_BLK_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DEST_BLK_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -777,9 +481,7 @@ void Test_SB_AppInit_Sub2Fail(void)
 void Test_SB_AppInit_GetPoolFail(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     int32           ForcedRtnVal = -1;
 
 #ifdef UT_VERBOSE
@@ -788,30 +490,9 @@ void Test_SB_AppInit_GetPoolFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBuf), 3, ForcedRtnVal);
-    ExpRtn = ForcedRtnVal;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(ForcedRtnVal, CFE_SB_AppInit(), "CFE_SB_AppInit in GetPool");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CFE_SB_AppInit in GetPool test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -824,9 +505,7 @@ void Test_SB_AppInit_GetPoolFail(void)
 void Test_SB_AppInit_PutPoolFail(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     int32           ForcedRtnVal = -1;
 
 #ifdef UT_VERBOSE
@@ -835,30 +514,9 @@ void Test_SB_AppInit_PutPoolFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_PutPoolBuf), 1, ForcedRtnVal);
-    ExpRtn = ForcedRtnVal;
-    ActRtn = CFE_SB_AppInit();
+    CHECKVAL(ForcedRtnVal, CFE_SB_AppInit(), "CFE_SB_AppInit in PutPool");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CFE_SB_AppInit in PutPool Test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -888,9 +546,7 @@ void Test_SB_MainRoutine(void)
 void Test_SB_Main_RcvErr(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Main Loop, Rcv Error Test");
@@ -899,29 +555,11 @@ void Test_SB_Main_RcvErr(void)
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(OS_QueueGet), 1, -1);
     CFE_SB_TaskMain();
-    ExpRtn = 5;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(5);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_INIT_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_INIT_EID) == false)
-    {
-        UT_Text("CFE_SB_INIT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_RD_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_Q_RD_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_Q_RD_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -934,9 +572,7 @@ void Test_SB_Main_RcvErr(void)
 void Test_SB_Main_InitErr(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Start of Main Loop, Init Error Test");
@@ -945,17 +581,7 @@ void Test_SB_Main_InitErr(void)
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_PutPoolBuf), 1, -1);
     CFE_SB_TaskMain();
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -1018,9 +644,7 @@ void Test_SB_Cmds(void)
 void Test_SB_Cmds_Noop(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - No-op");
@@ -1031,23 +655,9 @@ void Test_SB_Cmds_Noop(void)
     CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t) &NoParamCmd, CFE_SB_NOOP_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_CMD0_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_CMD0_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_CMD0_RCVD_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1060,9 +670,7 @@ void Test_SB_Cmds_Noop(void)
 void Test_SB_Cmds_RstCtrs(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat= CFE_PASS;
+    TestStat= CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Reset Counters");
@@ -1073,23 +681,9 @@ void Test_SB_Cmds_RstCtrs(void)
     CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t) &NoParamCmd, CFE_SB_RESET_COUNTERS_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_CMD1_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_CMD1_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_CMD1_RCVD_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1102,9 +696,7 @@ void Test_SB_Cmds_RstCtrs(void)
 void Test_SB_Cmds_Stats(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send SB Stats");
@@ -1115,29 +707,11 @@ void Test_SB_Cmds_Stats(void)
     CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t) &NoParamCmd, CFE_SB_SEND_SB_STATS_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_STATS_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SND_STATS_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_STATS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_STATS_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_STATS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_STATS_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1151,9 +725,7 @@ void Test_SB_Cmds_RoutingInfoDef(void)
 {
     CFE_SB_PipeId_t           PipeId = 0;
     CFE_SB_WriteFileInfoCmd_t WriteFileCmd;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Routing Info, Using Default Filename");
@@ -1167,56 +739,20 @@ void Test_SB_Cmds_RoutingInfoDef(void)
     strncpy((char *)WriteFileCmd.Payload.Filename, "", sizeof(WriteFileCmd.Payload.Filename));
 
     /* Make some routing info by calling CFE_SB_AppInit */
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_AppInit();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_AppInit, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_AppInit(), "CFE_SB_AppInit");
 
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
 
-    ExpRtn = 5;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(5);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_INIT_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_INIT_EID) == false)
-    {
-        UT_Text("CFE_SB_CMD1_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_INIT_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_INIT_EID) == false)
-    {
-        UT_Text("CFE_SB_INIT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -1230,9 +766,7 @@ void Test_SB_Cmds_RoutingInfoDef(void)
 void Test_SB_Cmds_RoutingInfoSpec(void)
 {
     CFE_SB_WriteFileInfoCmd_t WriteFileCmd;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Routing Info2, Using Specified "
@@ -1247,23 +781,9 @@ void Test_SB_Cmds_RoutingInfoSpec(void)
     strncpy((char *)WriteFileCmd.Payload.Filename, "RoutingTstFile", sizeof(WriteFileCmd.Payload.Filename));
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1276,9 +796,7 @@ void Test_SB_Cmds_RoutingInfoSpec(void)
 void Test_SB_Cmds_RoutingInfoCreateFail(void)
 {
     CFE_SB_WriteFileInfoCmd_t WriteFileCmd;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Routing Info3, File Create Fails");
@@ -1295,23 +813,9 @@ void Test_SB_Cmds_RoutingInfoCreateFail(void)
     /* Make function CFE_SB_SendRtgInfo return CFE_SB_FILE_IO_ERR */
     UT_SetForceFail(UT_KEY(OS_creat), OS_ERROR);
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_ERR1_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_ERR1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_ERR1_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1323,9 +827,7 @@ void Test_SB_Cmds_RoutingInfoCreateFail(void)
 */
 void Test_SB_Cmds_RoutingInfoHdrFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Routing Info4, FileHdrWrite Fails");
@@ -1333,36 +835,11 @@ void Test_SB_Cmds_RoutingInfoHdrFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_FS_WriteHeader), 1, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendRtgInfo("RoutingTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendRtgInfo("RoutingTstFile"), "CFE_SB_SendRtgInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendRtgInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendRtgInfo",
@@ -1376,78 +853,29 @@ void Test_SB_Cmds_RoutingInfoHdrFail(void)
 void Test_SB_Cmds_RoutingInfoWriteFail(void)
 {
     CFE_SB_PipeId_t PipeId = 0;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Routing Info5, Second FileWrite Fails");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = CFE_SUCCESS;
 
     /* Make some routing info by calling CFE_SB_AppInit */
-    ActRtn = CFE_SB_AppInit();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_AppInit, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_AppInit(), "CFE_SB_AppInit");
 
     UT_SetDeferredRetcode(UT_KEY(OS_write), 2, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendRtgInfo("RoutingTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendRtgInfo("RoutingTstFile"), "CFE_SB_SendRtgInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendRtgInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(5);
 
-    ExpRtn = 5;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_INIT_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_INIT_EID) == false)
-    {
-        UT_Text("CFE_SB_INIT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -1465,9 +893,7 @@ void Test_SB_Cmds_PipeInfoDef(void)
     CFE_SB_PipeId_t           PipeId2;
     CFE_SB_PipeId_t           PipeId3;
     uint16                    PipeDepth = 10;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Pipe Info, Using Default Filename");
@@ -1486,29 +912,11 @@ void Test_SB_Cmds_PipeInfoDef(void)
     CFE_SB_CreatePipe(&PipeId3, PipeDepth, "TestPipe3");
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(4);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -1524,9 +932,7 @@ void Test_SB_Cmds_PipeInfoDef(void)
 void Test_SB_Cmds_PipeInfoSpec(void)
 {
     CFE_SB_WriteFileInfoCmd_t WriteFileCmd;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Pipe Info2, Using Specified Filename");
@@ -1540,23 +946,9 @@ void Test_SB_Cmds_PipeInfoSpec(void)
     strncpy((char *)WriteFileCmd.Payload.Filename, "PipeTstFile", sizeof(WriteFileCmd.Payload.Filename));
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1568,9 +960,7 @@ void Test_SB_Cmds_PipeInfoSpec(void)
 */
 void Test_SB_Cmds_PipeInfoCreateFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Pipe Info3, File Create Fails");
@@ -1578,36 +968,11 @@ void Test_SB_Cmds_PipeInfoCreateFail(void)
 
     SB_ResetUnitTest();
     UT_SetForceFail(UT_KEY(OS_creat), OS_ERROR);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendPipeInfo("PipeTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendPipeInfo("PipeTstFile"), "CFE_SB_SendPipeInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendPipeInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_ERR1_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_ERR1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_ERR1_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendPipeInfo",
@@ -1619,9 +984,7 @@ void Test_SB_Cmds_PipeInfoCreateFail(void)
 */
 void Test_SB_Cmds_PipeInfoHdrFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Pipe Info4, FileHdrWrite Fails");
@@ -1629,36 +992,11 @@ void Test_SB_Cmds_PipeInfoHdrFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_FS_WriteHeader), 1, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendPipeInfo("PipeTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendPipeInfo("PipeTstFile"), "CFE_SB_SendPipeInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendPipeInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendPipeInfo",
@@ -1675,9 +1013,7 @@ void Test_SB_Cmds_PipeInfoWriteFail(void)
     CFE_SB_PipeId_t PipeId2;
     CFE_SB_PipeId_t PipeId3;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Pipe Info5, Second FileWrite fails");
@@ -1688,42 +1024,13 @@ void Test_SB_Cmds_PipeInfoWriteFail(void)
     CFE_SB_CreatePipe(&PipeId2, PipeDepth, "TestPipe2");
     CFE_SB_CreatePipe(&PipeId3, PipeDepth, "TestPipe3");
     UT_SetDeferredRetcode(UT_KEY(OS_write), 2, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendPipeInfo("PipeTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendPipeInfo("PipeTstFile"), "CFE_SB_SendPipeInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendPipeInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(4);
 
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -1749,9 +1056,7 @@ void Test_SB_Cmds_MapInfoDef(void)
     CFE_SB_MsgId_t            MsgId4 = SB_UT_TLM_MID + 5;
     CFE_SB_MsgId_t            MsgId5 = SB_UT_TLM_MID + 6;
     uint16                    PipeDepth = 10;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Map Info, Using Default Filename");
@@ -1777,35 +1082,13 @@ void Test_SB_Cmds_MapInfoDef(void)
     CFE_SB_Subscribe(MsgId5, PipeId2);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 11;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(11);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -1821,9 +1104,7 @@ void Test_SB_Cmds_MapInfoDef(void)
 void Test_SB_Cmds_MapInfoSpec(void)
 {
     CFE_SB_WriteFileInfoCmd_t WriteFileCmd;
-    int32                     ExpRtn;
-    int32                     ActRtn;
-    int32                     TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Map Info2, Using Specified Filename");
@@ -1837,23 +1118,9 @@ void Test_SB_Cmds_MapInfoSpec(void)
     strncpy((char *)WriteFileCmd.Payload.Filename, "MapTstFile", sizeof(WriteFileCmd.Payload.Filename));
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &WriteFileCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -1865,9 +1132,7 @@ void Test_SB_Cmds_MapInfoSpec(void)
 */
 void Test_SB_Cmds_MapInfoCreateFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Map Info3, File Create Fails");
@@ -1875,36 +1140,11 @@ void Test_SB_Cmds_MapInfoCreateFail(void)
 
     SB_ResetUnitTest();
     UT_SetForceFail(UT_KEY(OS_creat), OS_ERROR);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendMapInfo("MapTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendMapInfo("MapTstFile"), "CFE_SB_SendMapInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendMapInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SND_RTG_ERR1_EID) == false)
-    {
-        UT_Text("CFE_SB_SND_RTG_ERR1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SND_RTG_ERR1_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendMapInfo",
@@ -1916,9 +1156,7 @@ void Test_SB_Cmds_MapInfoCreateFail(void)
 */
 void Test_SB_Cmds_MapInfoHdrFail(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Map Info4, FileHdrWrite Fails");
@@ -1926,36 +1164,11 @@ void Test_SB_Cmds_MapInfoHdrFail(void)
 
     SB_ResetUnitTest();
     UT_SetDeferredRetcode(UT_KEY(CFE_FS_WriteHeader), 1, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendMapInfo("MapTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendMapInfo("MapTstFile"), "CFE_SB_SendMapInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendMapInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendMapInfo",
@@ -1978,9 +1191,7 @@ void Test_SB_Cmds_MapInfoWriteFail(void)
     CFE_SB_MsgId_t  MsgId4 = SB_UT_TLM_MID + 5;
     CFE_SB_MsgId_t  MsgId5 = SB_UT_TLM_MID + 6;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Map Info5, Second FileWrite Fails");
@@ -2000,48 +1211,15 @@ void Test_SB_Cmds_MapInfoWriteFail(void)
     CFE_SB_Subscribe(MsgId4, PipeId3);
     CFE_SB_Subscribe(MsgId5, PipeId2);
     UT_SetDeferredRetcode(UT_KEY(OS_write), 2, -1);
-    ExpRtn = CFE_SB_FILE_IO_ERR;
-    ActRtn = CFE_SB_SendMapInfo("MapTstFile");
+    CHECKVAL(CFE_SB_FILE_IO_ERR, CFE_SB_SendMapInfo("MapTstFile"), "CFE_SB_SendMapInfo");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from CFE_SB_SendMapInfo, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(11);
 
-    ExpRtn = 11;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_FILEWRITE_ERR_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_FILEWRITE_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_FILEWRITE_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -2060,9 +1238,7 @@ void Test_SB_Cmds_EnRouteValParam(void)
     CFE_SB_PipeId_t    PipeId;
     CFE_SB_MsgId_t     MsgId = SB_UT_TLM_MID;
     uint16             PipeDepth = 5;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Enable Route, Valid Param");
@@ -2079,35 +1255,13 @@ void Test_SB_Cmds_EnRouteValParam(void)
     EnDisRouteCmd.Payload.Pipe = PipeId;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_ENBL_RTE2_EID) == false)
-    {
-        UT_Text("CFE_SB_ENBL_RTE2_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_ENBL_RTE2_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -2125,9 +1279,7 @@ void Test_SB_Cmds_EnRouteNonExist(void)
     CFE_SB_PipeId_t    PipeId2;
     CFE_SB_MsgId_t     MsgId = SB_UT_TLM_MID;
     uint16             PipeDepth = 5;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Enable Route, Non Exist");
@@ -2145,35 +1297,13 @@ void Test_SB_Cmds_EnRouteNonExist(void)
     EnDisRouteCmd.Payload.Pipe = PipeId2;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(4);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_ENBL_RTE1_EID) == false)
-    {
-        UT_Text("CFE_SB_ENBL_RTE1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_ENBL_RTE1_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -2188,9 +1318,7 @@ void Test_SB_Cmds_EnRouteNonExist(void)
 void Test_SB_Cmds_EnRouteInvParam(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Enable Route, Invalid Pipe ID");
@@ -2205,23 +1333,9 @@ void Test_SB_Cmds_EnRouteInvParam(void)
     EnDisRouteCmd.Payload.Pipe = 3;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_ENBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_ENBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_ENBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2234,9 +1348,7 @@ void Test_SB_Cmds_EnRouteInvParam(void)
 void Test_SB_Cmds_EnRouteInvParam2(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Enable Route, Invalid Msg ID");
@@ -2251,23 +1363,9 @@ void Test_SB_Cmds_EnRouteInvParam2(void)
     EnDisRouteCmd.Payload.Pipe = 3;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_ENBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_ENBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_ENBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2281,9 +1379,7 @@ void Test_SB_Cmds_EnRouteInvParam2(void)
 void Test_SB_Cmds_EnRouteInvParam3(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Enable Route, Msg ID Too Large");
@@ -2298,23 +1394,9 @@ void Test_SB_Cmds_EnRouteInvParam3(void)
     EnDisRouteCmd.Payload.Pipe = 0;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_ENBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_ENBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_ENBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2330,9 +1412,7 @@ void Test_SB_Cmds_DisRouteValParam(void)
     CFE_SB_PipeId_t    PipeId;
     CFE_SB_MsgId_t     MsgId = SB_UT_TLM_MID;
     uint16             PipeDepth = 5;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Disable Route, Valid Param");
@@ -2349,35 +1429,13 @@ void Test_SB_Cmds_DisRouteValParam(void)
     EnDisRouteCmd.Payload.Pipe = PipeId;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DSBL_RTE2_EID) == false)
-    {
-        UT_Text("CFE_SB_DSBL_RTE2_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DSBL_RTE2_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -2394,9 +1452,7 @@ void Test_SB_Cmds_DisRouteNonExist(void)
     CFE_SB_PipeId_t    PipeId1, PipeId2;
     CFE_SB_MsgId_t     MsgId = SB_UT_TLM_MID;
     uint16             PipeDepth = 5;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Disable Route, Non Exist");
@@ -2414,35 +1470,13 @@ void Test_SB_Cmds_DisRouteNonExist(void)
     EnDisRouteCmd.Payload.Pipe = PipeId2;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(4);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DSBL_RTE1_EID) == false)
-    {
-        UT_Text("CFE_SB_DSBL_RTE1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DSBL_RTE1_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -2457,9 +1491,7 @@ void Test_SB_Cmds_DisRouteNonExist(void)
 void Test_SB_Cmds_DisRouteInvParam(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Disable Route, Invalid Pipe ID");
@@ -2474,23 +1506,9 @@ void Test_SB_Cmds_DisRouteInvParam(void)
     EnDisRouteCmd.Payload.Pipe = 3;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DSBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_DSBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DSBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2503,9 +1521,7 @@ void Test_SB_Cmds_DisRouteInvParam(void)
 void Test_SB_Cmds_DisRouteInvParam2(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Disable Route, Invalid Param2");
@@ -2520,23 +1536,9 @@ void Test_SB_Cmds_DisRouteInvParam2(void)
     EnDisRouteCmd.Payload.Pipe = 3;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DSBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_DSBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DSBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2550,9 +1552,7 @@ void Test_SB_Cmds_DisRouteInvParam2(void)
 void Test_SB_Cmds_DisRouteInvParam3(void)
 {
     CFE_SB_RouteCmd_t  EnDisRouteCmd;
-    int32              ExpRtn;
-    int32              ActRtn;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Disable Route, Msg ID Too Large");
@@ -2567,23 +1567,9 @@ void Test_SB_Cmds_DisRouteInvParam3(void)
     EnDisRouteCmd.Payload.Pipe = 0;
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnDisRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DSBL_RTE3_EID) == false)
-    {
-        UT_Text("CFE_SB_DSBL_RTE3_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DSBL_RTE3_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2596,9 +1582,7 @@ void Test_SB_Cmds_DisRouteInvParam3(void)
 void Test_SB_Cmds_SendHK(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Housekeeping Info");
@@ -2610,23 +1594,9 @@ void Test_SB_Cmds_SendHK(void)
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
 
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_NO_SUBS_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_NO_SUBS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_NO_SUBS_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2647,9 +1617,7 @@ void Test_SB_Cmds_SendPrevSubs(void)
     uint16          PipeDepth = 50;
     int32           i;
     int32           NumEvts;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Send Previous Subscriptions");
@@ -2677,96 +1645,36 @@ void Test_SB_Cmds_SendPrevSubs(void)
         if (i != CFE_SB_ALLSUBS_TLM_MID)
         {
             ++NumEvts;
-            ActRtn = CFE_SB_Subscribe(i, PipeId1);
-            ExpRtn = CFE_SUCCESS;
-
-            if (ActRtn != ExpRtn)
-            {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected return subscribing in SendPrevSubs Test, "
-                           "i=%d, exp=0x%lx, act=0x%lx",
-                         (int) i, (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
+            CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(i, PipeId1), "subscribing");
         }
     }
 
     CFE_SB_SubscribeLocal(MsgId, PipeId2, MsgLim);
     CFE_SB_ProcessCmdPipePkt();
     NumEvts += 7;  /* +1 for the subscribe, +6 for the SEND_PREV_SUBS_CC */
-    ExpRtn = NumEvts;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(NumEvts);
 
     /* Round out the number to three full pkts in order to test branch path
      * coverage, MSGID 0x0D was skipped in previous subscription loop
      */
     for (; i < CFE_SB_SUB_ENTRIES_PER_PKT * 3; i++)
     {
-        ActRtn = CFE_SB_Subscribe(i, PipeId1);
-        ExpRtn = CFE_SUCCESS;
+        CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(i, PipeId1), "subscribing");
         ++NumEvts;
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return subscribing in SendPrevSubs Test, "
-                       "i=%ld, exp=0x%lx, act=0x%lx",
-                     (unsigned long) i, (unsigned long) ExpRtn,
-                     (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
     }
 
     CFE_SB_SubscribeLocal(MsgId, PipeId2, MsgLim);
     CFE_SB_ProcessCmdPipePkt();
     NumEvts += 7;  /* +1 for the subscribe, +6 for the SEND_PREV_SUBS_CC */
-    ExpRtn = NumEvts;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(NumEvts);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
+    EVENTUNSENT(CFE_SB_SEND_NO_SUBS_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_FULL_SUB_PKT_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_SEND_NO_SUBS_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_NO_SUBS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_FULL_SUB_PKT_EID) == false)
-    {
-        UT_Text("CFE_SB_FULL_SUB_PKT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PART_SUB_PKT_EID) == false)
-    {
-        UT_Text("CFE_SB_PART_SUB_PKT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PART_SUB_PKT_EID);
 
     CFE_SB_DeletePipe(PipeId1);
     CFE_SB_DeletePipe(PipeId2);
@@ -2781,9 +1689,7 @@ void Test_SB_Cmds_SendPrevSubs(void)
 void Test_SB_Cmds_SubRptOn(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Subscription Reporting On");
@@ -2796,17 +1702,7 @@ void Test_SB_Cmds_SubRptOn(void)
                       CFE_SB_ENABLE_SUB_REPORTING_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2819,9 +1715,7 @@ void Test_SB_Cmds_SubRptOn(void)
 void Test_SB_Cmds_SubRptOff(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Subscription Reporting Off");
@@ -2834,17 +1728,7 @@ void Test_SB_Cmds_SubRptOff(void)
                       CFE_SB_DISABLE_SUB_REPORTING_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2857,9 +1741,7 @@ void Test_SB_Cmds_SubRptOff(void)
 void Test_SB_Cmds_UnexpCmdCode(void)
 {
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Unexpected Command Code");
@@ -2872,23 +1754,9 @@ void Test_SB_Cmds_UnexpCmdCode(void)
     CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t) &NoParamCmd, 99);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_BAD_CMD_CODE_EID) == false)
-    {
-        UT_Text("CFE_SB_BAD_CMD_CODE_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_BAD_CMD_CODE_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2904,9 +1772,7 @@ void Test_SB_Cmds_BadCmdLength(void)
      * Just choosing "EnableRoute" command here as it has a non-empty payload
      */
     CFE_SB_EnableRoute_t EnableRouteCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
     SB_ResetUnitTest();
     CFE_SB_InitMsg(&EnableRouteCmd, CFE_SB_CMD_MID, sizeof(EnableRouteCmd) - 1, true);
@@ -2915,23 +1781,9 @@ void Test_SB_Cmds_BadCmdLength(void)
     CFE_SB_SetCmdCode((CFE_SB_MsgPtr_t) &EnableRouteCmd, CFE_SB_ENABLE_ROUTE_CC);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &EnableRouteCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_LEN_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_LEN_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_LEN_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -2945,9 +1797,7 @@ void Test_SB_Cmds_UnexpMsgId(void)
 {
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     CFE_SB_CmdHdr_t NoParamCmd;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - Unexpected MsgId on SB Command Pipe");
@@ -2957,23 +1807,9 @@ void Test_SB_Cmds_UnexpMsgId(void)
     CFE_SB_InitMsg(&NoParamCmd, MsgId, sizeof(NoParamCmd), true);
     CFE_SB.CmdPipePktPtr = (CFE_SB_MsgPtr_t) &NoParamCmd;
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_BAD_MSGID_EID) == false)
-    {
-        UT_Text("CFE_SB_BAD_MSGID_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_BAD_MSGID_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ProcessCmdPipePkt",
@@ -3072,9 +1908,7 @@ void Test_CreatePipe_API(void)
 void Test_CreatePipe_NullPtr(void)
 {
     uint16 PipeDepth = 10;
-    int32  ExpRtn;
-    int32  ActRtn;
-    int32  TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Null Pointer");
@@ -3085,36 +1919,12 @@ void Test_CreatePipe_NullPtr(void)
     /* This provides completion of code coverage in CFE_SB_GetAppTskName() */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetTaskInfo), 1, CFE_ES_ERR_APPID);
 
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
     UT_SetDeferredRetcode(UT_KEY(OS_QueueCreate), 1, OS_SUCCESS); /* Avoids creating socket */
-    ActRtn = CFE_SB_CreatePipe(NULL, PipeDepth, "TestPipe");
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_CreatePipe(NULL, PipeDepth, "TestPipe"), "null ptr");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in null pointer test, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_CR_PIPE_BAD_ARG_EID) == false)
-    {
-        UT_Text("CFE_SB_CR_PIPE_BAD_ARG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_CR_PIPE_BAD_ARG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_CreatePipe_API", "Null pointer test");
@@ -3127,9 +1937,7 @@ void Test_CreatePipe_ValPipeDepth(void)
 {
     CFE_SB_PipeId_t PipeIdReturned[3];
     int32           Rtn[3];
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Valid Pipe Depth");
@@ -3159,23 +1967,9 @@ void Test_CreatePipe_ValPipeDepth(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_CreatePipe_API",
@@ -3193,9 +1987,7 @@ void Test_CreatePipe_InvalPipeDepth(void)
 {
     CFE_SB_PipeId_t PipeIdReturned[3];
     int32           Rtn[3];
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe Depth");
@@ -3228,23 +2020,9 @@ void Test_CreatePipe_InvalPipeDepth(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_CR_PIPE_BAD_ARG_EID) == false)
-    {
-        UT_Text("CFE_SB_CR_PIPE_BAD_ARG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_CR_PIPE_BAD_ARG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_CreatePipe_API",
@@ -3260,8 +2038,7 @@ void Test_CreatePipe_MaxPipes(void)
     uint16          PipeDepth = 50;
     int32           Rtn[CFE_PLATFORM_SB_MAX_PIPES + 1];
     int32           i;
-    int32           ExpRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     char            PipeName[OS_MAX_API_NAME];
 
 #ifdef UT_VERBOSE
@@ -3281,30 +2058,21 @@ void Test_CreatePipe_MaxPipes(void)
 
         if (i < CFE_PLATFORM_SB_MAX_PIPES)
         {
-            ExpRtn = CFE_SUCCESS;
+            if(!CHECKVAL(CFE_SUCCESS, Rtn[i], "max pipes"))
+            {
+                break;
+            }
         }
         else
         {
-            ExpRtn = CFE_SB_MAX_PIPES_MET;
-        }
-
-        if (Rtn[i] != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in max pipes test, "
-                       "i=%ld, exp=0x%lx, act=0x%lx",
-                     (long) i, (unsigned long) ExpRtn, (unsigned long) Rtn[i]);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-            break;
+            if(!CHECKVAL(CFE_SB_MAX_PIPES_MET, Rtn[i], "max pipes"))
+            {
+                break;
+            }
         }
     }
 
-    if (UT_EventIsInHistory(CFE_SB_MAX_PIPES_MET_EID) == false)
-    {
-        UT_Text("CFE_SB_MAX_PIPES_MET_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_MAX_PIPES_MET_EID);
 
     /* Clean up */
     for (i = 0; i <= CFE_PLATFORM_SB_MAX_PIPES - 1; i++)
@@ -3326,7 +2094,7 @@ void Test_CreatePipe_SamePipeName(void)
     uint16 PipeDepth = 1;
     char PipeName[] = "Test_CFE_SB";
     int32 status;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test Create Pipe with Duplicate Pipe Name");
@@ -3407,9 +2175,7 @@ void Test_DeletePipe_NoSubs(void)
 {
     CFE_SB_PipeId_t PipedId;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for No Subscriptions");
@@ -3417,41 +2183,13 @@ void Test_DeletePipe_NoSubs(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipedId, PipeDepth, "TestPipe");
-    ActRtn = CFE_SB_DeletePipe(PipedId);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_DeletePipe(PipedId), "delete pipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in delete pipe test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_DELETED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_DELETED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_DELETED_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_DeletePipe_API",
@@ -3469,9 +2207,7 @@ void Test_DeletePipe_WithSubs(void)
     CFE_SB_MsgId_t  MsgId2 = SB_UT_CMD_MID + 3;
     CFE_SB_MsgId_t  MsgId3 = SB_UT_CMD_MID + 4;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test With Subscriptions");
@@ -3483,41 +2219,13 @@ void Test_DeletePipe_WithSubs(void)
     CFE_SB_Subscribe(MsgId1, PipedId);
     CFE_SB_Subscribe(MsgId2, PipedId);
     CFE_SB_Subscribe(MsgId3, PipedId);
-    ActRtn = CFE_SB_DeletePipe(PipedId);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_DeletePipe(PipedId), "del pipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in delete pipe test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(10);
 
-    ExpRtn = 10;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_DELETED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_DELETED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_DELETED_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_DeletePipe_API",
@@ -3530,44 +2238,18 @@ void Test_DeletePipe_WithSubs(void)
 void Test_DeletePipe_InvalidPipeId(void)
 {
     CFE_SB_PipeId_t PipeId = 30;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe ID");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_DeletePipe(PipeId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_DeletePipe(PipeId), "del pipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in delete pipe test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DEL_PIPE_ERR1_EID) == false)
-    {
-        UT_Text("CFE_SB_DEL_PIPE_ERR1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DEL_PIPE_ERR1_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_DeletePipe_API",
@@ -3582,64 +2264,25 @@ void Test_DeletePipe_InvalidPipeOwner(void)
     CFE_SB_PipeId_t PipedId;
     uint32          RealOwner;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe Owner");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_CreatePipe(&PipedId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CreatePipe in DeletePipe, "
-                   "invalid owner test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_CreatePipe(&PipedId, PipeDepth, "TestPipe"), "createpipe");
 
     /* Change owner of pipe through memory corruption */
     RealOwner = CFE_SB.PipeTbl[PipedId].AppId;
 
     /* Choose a value that is sure not to be owner */
     CFE_SB.PipeTbl[PipedId].AppId = RealOwner + 1;
-    ActRtn = CFE_SB_DeletePipe(PipedId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_DeletePipe(PipedId), "delpipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from DeletePipe in DeletePipe, "
-                   "invalid owner test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from UT_GetNumEventsSent, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_DEL_PIPE_ERR2_EID) == false)
-    {
-        UT_Text("CFE_SB_DEL_PIPE_ERR2_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_DEL_PIPE_ERR2_EID);
 
     /* Restore owner id and delete pipe since test is complete */
     CFE_SB.PipeTbl[PipedId].AppId = RealOwner;
@@ -3661,9 +2304,7 @@ void Test_DeletePipe_WithAppid(void)
     CFE_SB_MsgId_t  MsgId3 = SB_UT_CMD_MID + 4;
     uint32          AppId = 0;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test DeletePipeWithAppId API");
@@ -3675,30 +2316,9 @@ void Test_DeletePipe_WithAppid(void)
     CFE_SB_Subscribe(MsgId1, PipedId);
     CFE_SB_Subscribe(MsgId2, PipedId);
     CFE_SB_Subscribe(MsgId3, PipedId);
-    ActRtn = CFE_SB_DeletePipeWithAppId(PipedId, AppId);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_DeletePipeWithAppId(PipedId, AppId), "del pipe w/app id");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in delete pipe w/app ID test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 10;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(10);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_DeletePipe_API", "With app ID test");
@@ -3731,7 +2351,7 @@ void Test_PipeOpts_API(void)
 void Test_SetPipeOpts_BadID(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Cmd - SetPipeOpts with bad ID");
@@ -3746,11 +2366,7 @@ void Test_SetPipeOpts_BadID(void)
         TestStat = CFE_FAIL;
     }
 
-    if (UT_EventIsInHistory(CFE_SB_SETPIPEOPTS_ID_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_SETPIPEOPTS_ID_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SETPIPEOPTS_ID_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SetPipeOpts",
@@ -3763,7 +2379,7 @@ void Test_SetPipeOpts_BadID(void)
 void Test_SetPipeOpts_NotOwner(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_PipeId_t PipeID = 0;
     uint8 PipeTblIdx = 0;
     uint32 OrigOwner = 0;
@@ -3800,11 +2416,7 @@ void Test_SetPipeOpts_NotOwner(void)
 
     CFE_SB.PipeTbl[PipeTblIdx].AppId = OrigOwner;
 
-    if (UT_EventIsInHistory(CFE_SB_SETPIPEOPTS_OWNER_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_SETPIPEOPTS_OWNER_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SETPIPEOPTS_OWNER_ERR_EID);
 
     CFE_SB_DeletePipe(PipeID);
 
@@ -3819,7 +2431,7 @@ void Test_SetPipeOpts_NotOwner(void)
 void Test_SetPipeOpts(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_PipeId_t PipeID = 0;
 
 #ifdef UT_VERBOSE
@@ -3848,11 +2460,7 @@ void Test_SetPipeOpts(void)
         TestStat = CFE_FAIL;
     }
 
-    if (UT_EventIsInHistory(CFE_SB_SETPIPEOPTS_EID) == false)
-    {
-        UT_Text("CFE_SB_SETPIPEOPTS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SETPIPEOPTS_EID);
 
     CFE_SB_DeletePipe(PipeID);
 
@@ -3867,7 +2475,7 @@ void Test_SetPipeOpts(void)
 void Test_GetPipeOpts_BadID(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     uint8 Opts = 0;
 
 #ifdef UT_VERBOSE
@@ -3883,11 +2491,7 @@ void Test_GetPipeOpts_BadID(void)
         TestStat = CFE_FAIL;
     }
 
-    if (UT_EventIsInHistory(CFE_SB_GETPIPEOPTS_ID_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_GETPIPEOPTS_ID_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_GETPIPEOPTS_ID_ERR_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_GetPipeOpts",
@@ -3900,7 +2504,7 @@ void Test_GetPipeOpts_BadID(void)
 void Test_GetPipeOpts_BadPtr(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_PipeId_t PipeID = 0;
 
 #ifdef UT_VERBOSE
@@ -3930,12 +2534,7 @@ void Test_GetPipeOpts_BadPtr(void)
         TestStat = CFE_FAIL;
     }
 
-    if (UT_EventIsInHistory(CFE_SB_GETPIPEOPTS_PTR_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_GETPIPEOPTS_PTR_ERR_EID not sent");
-
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_GETPIPEOPTS_PTR_ERR_EID);
 
     CFE_SB_DeletePipe(PipeID);
 
@@ -3950,7 +2549,7 @@ void Test_GetPipeOpts_BadPtr(void)
 void Test_GetPipeOpts(void)
 {
     int32 ActRtn = 0;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_PipeId_t PipeID = 0;
     uint8 Opts = 0;
 #ifdef UT_VERBOSE
@@ -3980,12 +2579,7 @@ void Test_GetPipeOpts(void)
         TestStat = CFE_FAIL;
     }
 
-    if (UT_EventIsInHistory(CFE_SB_GETPIPEOPTS_EID) == false)
-    {
-        UT_Text("CFE_SB_GETPIPEOPTS_EID not sent");
-
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_GETPIPEOPTS_EID);
 
     CFE_SB_DeletePipe(PipeID);
 
@@ -4032,9 +2626,7 @@ void Test_Subscribe_SubscribeEx(void)
     CFE_SB_Qos_t    Quality = {0, 0};
     uint16          PipeDepth = 10;
     uint16          MsgLim = 8;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for SubscribeEx");
@@ -4042,41 +2634,13 @@ void Test_Subscribe_SubscribeEx(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_SubscribeEx(MsgId, PipeId, Quality, MsgLim);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SubscribeEx(MsgId, PipeId, Quality, MsgLim), "SubscribeEx");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in SubscribeEx Test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -4090,45 +2654,18 @@ void Test_Subscribe_InvalidPipeId(void)
 {
     CFE_SB_PipeId_t PipeId = 2;
     CFE_SB_MsgId_t  MsgId = CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe ID");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Subscribe(MsgId, PipeId), "invalid pipe id sub");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid pipe ID subscribe test, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUB_INV_PIPE_EID) == false)
-    {
-        UT_Text("CFE_SB_SUB_INV_PIPE_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUB_INV_PIPE_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_Subscribe_API", "Invalid pipe ID test");
@@ -4142,9 +2679,7 @@ void Test_Subscribe_InvalidMsgId(void)
     CFE_SB_PipeId_t PipeId;
     CFE_SB_MsgId_t  MsgId = CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Message ID");
@@ -4152,36 +2687,11 @@ void Test_Subscribe_InvalidMsgId(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Subscribe(MsgId, PipeId), "invalid message ID sub");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid message ID subscribe test, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUB_ARG_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_SUB_ARG_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUB_ARG_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -4199,9 +2709,7 @@ void Test_Subscribe_MaxMsgLim(void)
     CFE_SB_Qos_t    Quality = {0, 0};
     uint16          PipeDepth = 10;
     uint16          MsgLim;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Maximum Message Limit");
@@ -4210,36 +2718,11 @@ void Test_Subscribe_MaxMsgLim(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
     MsgLim = 0xffff;
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_SubscribeEx(MsgId, PipeId, Quality, MsgLim);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SubscribeEx(MsgId, PipeId, Quality, MsgLim), "max msg lim sub");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in maximum message limit subscribe test, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -4255,9 +2738,7 @@ void Test_Subscribe_DuplicateSubscription(void)
     CFE_SB_PipeId_t PipeId;
     CFE_SB_MsgId_t  MsgId = SB_UT_CMD_MID;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Duplicate Subscription");
@@ -4265,49 +2746,13 @@ void Test_Subscribe_DuplicateSubscription(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(MsgId, PipeId), "1st sub of dup sub");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in first subscribe of duplicate "
-                   "subscription test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(MsgId, PipeId), "2nd sub of dup sub");
 
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in second subscribe of duplicate "
-                   "subscription test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -4324,9 +2769,7 @@ void Test_Subscribe_LocalSubscription(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint16          PipeDepth = 10;
     uint16          MsgLim = 4;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Local Subscription");
@@ -4334,36 +2777,11 @@ void Test_Subscribe_LocalSubscription(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_SubscribeLocal(MsgId, PipeId, MsgLim);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SubscribeLocal(MsgId, PipeId, MsgLim), "local sub");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in local subscription test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -4382,9 +2800,7 @@ void Test_Subscribe_MaxDestCount(void)
     uint16          PipeDepth = 50;
     int32           i;
     int32           Rtn[CFE_PLATFORM_SB_MAX_DEST_PER_PKT + 1];
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Maximum Destination Count");
@@ -4397,17 +2813,8 @@ void Test_Subscribe_MaxDestCount(void)
     {
         snprintf(PipeName, OS_MAX_API_NAME, "TestPipe%ld", (long) i);
         Rtn[i] = CFE_SB_CreatePipe(&PipeId[i], PipeDepth, &PipeName[0]);
-        ExpRtn = CFE_SUCCESS;
-
-        if (Rtn[i] != ExpRtn)
+        if(!CHECKVAL(CFE_SUCCESS, Rtn[i], "creating pipes in max dest cnt"))
         {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected error creating pipes in maximum destination "
-                       "count test, i=%ld, exp=0x%lx, act=0x%lx",
-                       (long) i, (unsigned long) ExpRtn,
-                       (unsigned long) Rtn[i]);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
             break;
         }
     }
@@ -4415,46 +2822,25 @@ void Test_Subscribe_MaxDestCount(void)
     /* Do subscriptions */
     for (i = 0; i < CFE_PLATFORM_SB_MAX_DEST_PER_PKT + 1; i++)
     {
-        ActRtn = CFE_SB_Subscribe(MsgId, i);
-
         if (i < CFE_PLATFORM_SB_MAX_DEST_PER_PKT)
         {
-            ExpRtn = CFE_SUCCESS;
+            if(!CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(MsgId, i), "max dest cnt"))
+            {
+                break;
+            }
         }
         else
         {
-            ExpRtn = CFE_SB_MAX_DESTS_MET;
-        }
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in maximum destination count test, "
-                       "i=%ld, exp=0x%lx, act=0x%lx",
-                     (long) i, (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-            break;
+            if(!CHECKVAL(CFE_SB_MAX_DESTS_MET, CFE_SB_Subscribe(MsgId, i), "max dest cnt"))
+            {
+                break;
+            }
         }
     }
 
-    ExpRtn = 2 * (CFE_PLATFORM_SB_MAX_DEST_PER_PKT + 1);
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2 * (CFE_PLATFORM_SB_MAX_DEST_PER_PKT + 1));
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     /* Delete pipes */
     for (i = 0; i < CFE_PLATFORM_SB_MAX_DEST_PER_PKT + 1; i++)
@@ -4477,9 +2863,7 @@ void Test_Subscribe_MaxMsgIdCount(void)
     CFE_SB_PipeId_t PipeId2;
     uint16          PipeDepth = 50;
     int32           i;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Maximum Message ID Count");
@@ -4491,33 +2875,17 @@ void Test_Subscribe_MaxMsgIdCount(void)
 
     for (i = 0; i < CFE_PLATFORM_SB_MAX_MSG_IDS + 1; i++)
     {
-        ActRtn = CFE_SB_Subscribe(i, PipeId2);
-
         if (i < CFE_PLATFORM_SB_MAX_MSG_IDS)
         {
-            ExpRtn = CFE_SUCCESS;
+            CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(i, PipeId2), "maximum message ID count");
         }
         else
         {
-            ExpRtn = CFE_SB_MAX_MSGS_MET;
-        }
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in maximum message ID count test, "
-                       "i=%ld, exp=0x%lx, act=0x%lx",
-                     (long) i, (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
+            CHECKVAL(CFE_SB_MAX_MSGS_MET, CFE_SB_Subscribe(i, PipeId2), "maximum message ID count");
         }
     }
 
-    if (UT_EventIsInHistory(CFE_SB_MAX_MSGS_MET_EID) == false)
-    {
-        UT_Text("CFE_SB_MAX_MSGS_MET_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_MAX_MSGS_MET_EID);
 
     CFE_SB_DeletePipe(PipeId0);
     CFE_SB_DeletePipe(PipeId1);
@@ -4539,9 +2907,7 @@ void Test_Subscribe_SendPrevSubs(void)
     CFE_SB_MsgId_t  MsgId1 = SB_UT_TLM_MID + 2;
     CFE_SB_MsgId_t  MsgId2 = SB_UT_TLM_MID + 3;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_SendPrevSubs_t SendPrevSubsMsg;
 
 #ifdef UT_VERBOSE
@@ -4568,23 +2934,9 @@ void Test_Subscribe_SendPrevSubs(void)
     CFE_SB.RoutingTbl[2].ListHeadPtr = NULL;
 
     CFE_SB_SendPrevSubsCmd(&SendPrevSubsMsg);
-    ExpRtn = 12;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(12);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PART_SUB_PKT_EID) == false)
-    {
-        UT_Text("CFE_SB_PART_SUB_PKT_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PART_SUB_PKT_EID);
 
     CFE_SB_DeletePipe(PipeId0);
     CFE_SB_DeletePipe(PipeId1);
@@ -4607,9 +2959,7 @@ void Test_Subscribe_FindGlobalMsgIdCnt(void)
     CFE_SB_MsgId_t  MsgId2 = SB_UT_TLM_MID + 3;
     uint16          PipeDepth = 50;
     uint16          MsgLim = 4;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Find Global Message ID Count");
@@ -4630,36 +2980,12 @@ void Test_Subscribe_FindGlobalMsgIdCnt(void)
     /* Set the last list head pointer to NULL for branch path coverage */
     CFE_SB.RoutingTbl[2].ListHeadPtr = NULL;
 
-    ActRtn = CFE_SB_FindGlobalMsgIdCnt();
-    ExpRtn = 2; /* 2 unique msg ids; the third is set to skip */
+    /* 2 unique msg ids; the third is set to skip */
+    CHECKVAL(2,CFE_SB_FindGlobalMsgIdCnt(),"find global message ID count");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in find global message ID count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(10);
 
-    ExpRtn = 10;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId0);
     CFE_SB_DeletePipe(PipeId1);
@@ -4676,45 +3002,18 @@ void Test_Subscribe_PipeNonexistent(void)
 {
     CFE_SB_MsgId_t  MsgId = SB_UT_CMD_MID;
     CFE_SB_PipeId_t PipeId = 55;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Pipe Nonexistent");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Subscribe(MsgId, PipeId), "pipe nonexistent");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in pipe nonexistent test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUB_INV_PIPE_EID) == false)
-    {
-        UT_Text("CFE_SB_SUB_INV_PIPE_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUB_INV_PIPE_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_Subscribe_API",
@@ -4730,109 +3029,31 @@ void Test_Subscribe_SubscriptionReporting(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     CFE_SB_Qos_t    Quality;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test SubscribeFull, Subscription Reporting");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from CreatePipe in subscription reporting "
-                   "test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else
+    if (CHECKVAL(CFE_SUCCESS, CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe"), "CreatePipe in subscription reporting"))
     {
         /* Enable subscription reporting */
         CFE_SB_SetSubscriptionReporting(CFE_SB_ENABLE);
 
         /* Subscribe to message: GLOBAL */
-        ActRtn = CFE_SB_Subscribe(MsgId, PipeId);
-        ExpRtn = CFE_SUCCESS;
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return from Subscribe in subscription "
-                       "reporting test, exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
-        else
+        if(CHECKVAL(CFE_SUCCESS, CFE_SB_Subscribe(MsgId, PipeId), "Subscribe in subscription reporting"))
         {
             /* Unsubscribe so that a local subscription can be tested */
-            ActRtn = CFE_SB_Unsubscribe(MsgId, PipeId);
-            ExpRtn = CFE_SUCCESS;
-
-            if (ActRtn != ExpRtn)
-            {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected return from Unsubscribe in subscription "
-                           "reporting test, exp=0x%lx, act=0x%lx",
-                         (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
-
-
-
-            if (ActRtn != ExpRtn)
-            {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected return from Unsubscribe in subscription "
-                           "reporting test, exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
-            else
+            if(CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId, PipeId), "Unsubscribe in subscription reporting"))
             {
                 /* Subscribe to message: LOCAL */
-                ActRtn = CFE_SB_SubscribeFull(MsgId, PipeId, Quality,
-                                              CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT,
-                                              CFE_SB_LOCAL);
-                ExpRtn = CFE_SUCCESS;
-
-                if (ActRtn != ExpRtn)
+                if(CHECKVAL(CFE_SUCCESS, CFE_SB_SubscribeFull(MsgId, PipeId, Quality, CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT, CFE_SB_LOCAL), "SubscribeFull in subscription reporting"))
                 {
-                    snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                             "Unexpected return from SubscribeFull in "
-                               "subscription reporting test, exp=0x%lx, "
-                               "act=0x%lx",
-                             (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                    UT_Text(cMsg);
-                    TestStat = CFE_FAIL;
-                }
-                else
-                {
-                    ExpRtn = 8;
-                    ActRtn = UT_GetNumEventsSent();
+                    CHECKEVENTS(8);
 
-                    if (ActRtn != ExpRtn)
-                    {
-                        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                                 "Unexpected rtn from UT_GetNumEventsSent, "
-                                   "exp=%lx, act=%lx",
-                                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                        UT_Text(cMsg);
-                        TestStat = CFE_FAIL;
-                    }
-                    else if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RPT_EID) == false)
-                    {
-                        UT_Text("CFE_SB_SUBSCRIPTION_RPT_EID not sent");
-                        TestStat = CFE_FAIL;
-                    }
+                    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RPT_EID);
                 }
             }
         }
@@ -4856,27 +3077,14 @@ void Test_Subscribe_InvalidPipeOwner(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint16          PipeDepth = 10;
     int32           RealOwner;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe Owner");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "First return was unexpected in subscribe - non owner test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe"), "first return unexpected in subscribe - not owner");
 
     /* Change owner of pipe through memory corruption */
     RealOwner = CFE_SB.PipeTbl[PipeId].AppId;
@@ -4884,23 +3092,9 @@ void Test_Subscribe_InvalidPipeOwner(void)
     /* Choose a value that is sure not to be owner */
     CFE_SB.PipeTbl[PipeId].AppId = RealOwner + 1;
     CFE_SB_Subscribe(MsgId, PipeId);
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUB_INV_CALLER_EID) == false)
-    {
-        UT_Text("CFE_SB_SUB_INV_CALLER_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUB_INV_CALLER_EID);
 
     /* Restore owner id and delete pipe since test is complete */
     CFE_SB.PipeTbl[PipeId].AppId = RealOwner;
@@ -4943,9 +3137,7 @@ void Test_Unsubscribe_Basic(void)
     CFE_SB_PipeId_t TestPipe;
     CFE_SB_MsgId_t  MsgId = CFE_PLATFORM_SB_HIGHEST_VALID_MSGID / 2 + 1;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Unsubscribe Basic");
@@ -4954,36 +3146,11 @@ void Test_Unsubscribe_Basic(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&TestPipe, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, TestPipe);
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, TestPipe);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId, TestPipe), "unsubscribe basic");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in unsubscribe basic, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(TestPipe);
     UT_Report(__FILE__, __LINE__,
@@ -4998,9 +3165,7 @@ void Test_Unsubscribe_Local(void)
     CFE_SB_PipeId_t TestPipe;
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Local Unsubscribe");
@@ -5009,36 +3174,11 @@ void Test_Unsubscribe_Local(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&TestPipe, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, TestPipe);
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_UnsubscribeLocal(CFE_PLATFORM_SB_HIGHEST_VALID_MSGID, TestPipe);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_UnsubscribeLocal(CFE_PLATFORM_SB_HIGHEST_VALID_MSGID, TestPipe), "local unsubscribe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in local unsubscribe test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(TestPipe);
     UT_Report(__FILE__, __LINE__,
@@ -5054,9 +3194,7 @@ void Test_Unsubscribe_InvalParam(void)
     CFE_SB_PipeId_t TestPipe;
     uint32          CallerId = 0xFFFFFFFF;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_PipeId_t SavedPipeId;
 
 #ifdef UT_VERBOSE
@@ -5067,94 +3205,32 @@ void Test_Unsubscribe_InvalParam(void)
     CFE_SB_CreatePipe(&TestPipe, PipeDepth, "TestPipe");
 
     /* Perform test using a bad message ID */
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_Unsubscribe(CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1, TestPipe);
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid param (MsgId) unsubscribe "
-                   "test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Unsubscribe(CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1, TestPipe), "invalid param (MsgId) unsub");
 
     /* Get the caller's Application ID */
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_ES_GetAppID(&CallerId);
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from GetAppID in unsubscribe test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else
+    if(CHECKVAL(CFE_SUCCESS, CFE_ES_GetAppID(&CallerId), "GetAppID in unsub"))
     {
         /* Perform test using a bad scope value */
-        ExpRtn = CFE_SB_BAD_ARGUMENT;
-        ActRtn = CFE_SB_UnsubscribeFull(0, TestPipe, CFE_SB_LOCAL + 1,
-                                        CallerId);
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in invalid param (Scope) unsubscribe "
-                       "test, exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
-        else
+        if(CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_UnsubscribeFull(0, TestPipe, CFE_SB_LOCAL + 1, CallerId), "invalid param (Scope) unsub"))
         {
             /* Perform test using an invalid pipe ID for branch path coverage.
              * This situation cannot happen in normal circumstances since the
              * bad pipe ID is caught by CFE_SB_GetPipeIdx() before it gets to
              * CFE_SB_ValidatePipeId()
              */
-            ExpRtn = CFE_SB_BAD_ARGUMENT;
             SavedPipeId = CFE_SB.PipeTbl[0].PipeId;
             CFE_SB.PipeTbl[0].PipeId = CFE_PLATFORM_SB_MAX_PIPES;
             CFE_SB.PipeTbl[0].InUse = 1;
-            ActRtn = CFE_SB_Unsubscribe(0, CFE_PLATFORM_SB_MAX_PIPES);
-
-            if (ActRtn != ExpRtn)
-            {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected return in invalid param (PipeId) "
-                           "unsubscribe test, exp=0x%lx, act=0x%lx",
-                         (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
+            CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Unsubscribe(0, CFE_PLATFORM_SB_MAX_PIPES), "invalid param (PipeId) unsub");
 
             /* We must restore the old value so CFE_SB_DeletePipe() works */
             CFE_SB.PipeTbl[0].PipeId = SavedPipeId;
 
-            ExpRtn = 4;
-            ActRtn = UT_GetNumEventsSent();
-
-            if (ActRtn != ExpRtn)
-            {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected rtn from UT_GetNumEventsSent, "
-                           "exp=%lx, act=%lx",
-                         (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
+            CHECKEVENTS(4);
         }
     }
 
-    if (UT_EventIsInHistory(CFE_SB_UNSUB_ARG_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_UNSUB_ARG_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_UNSUB_ARG_ERR_EID);
 
     CFE_SB_DeletePipe(TestPipe);
     UT_Report(__FILE__, __LINE__,
@@ -5171,9 +3247,7 @@ void Test_Unsubscribe_NoMatch(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     CFE_SB_MsgRouteIdx_t Idx;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for No Match");
@@ -5182,53 +3256,17 @@ void Test_Unsubscribe_NoMatch(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&TestPipe, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, TestPipe);
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Unsubscribe(MsgId + 1, TestPipe);
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in no match test (bad MsgId), "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId + 1, TestPipe), "no match");
 
     /* Get index into routing table */
     Idx = CFE_SB_GetRoutingTblIdx(CFE_SB_ConvertMsgIdtoMsgKey(MsgId));
     CFE_SB.RoutingTbl[CFE_SB_RouteIdxToValue(Idx)].ListHeadPtr->PipeId = 1;
     CFE_SB.RoutingTbl[CFE_SB_RouteIdxToValue(Idx)].ListHeadPtr->Next = NULL;
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, TestPipe);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId, TestPipe), "no match (bad routing tbl)");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in no match test (bad routing table), "
-                   "exp=0x%lx, act=0x%lx",
-                   (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(4);
 
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_UNSUB_NO_SUBS_EID) == false)
-    {
-        UT_Text("CFE_SB_UNSUB_NO_SUBS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_UNSUB_NO_SUBS_EID);
 
     CFE_SB_DeletePipe(TestPipe);
     UT_Report(__FILE__, __LINE__,
@@ -5245,9 +3283,7 @@ void Test_Unsubscribe_SubscriptionReporting(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint32          CallerId = 0xFFFFFFFF;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test Unsubscribe Subscription Reporting");
@@ -5258,70 +3294,19 @@ void Test_Unsubscribe_SubscriptionReporting(void)
     CFE_SB_Subscribe(MsgId, TestPipe);
     CFE_SB_SetSubscriptionReporting(CFE_SB_ENABLE);
     CFE_SB_Unsubscribe(MsgId, TestPipe);
-    ExpRtn = CFE_SB_UNSUBSCRIPTION;
-    ActRtn = CFE_SB.SubRprtMsg.Payload.SubType;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unsubscribe not enabled as expected in CFE_SB_Unsubscribe, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else
+    if(CHECKVAL(CFE_SB_UNSUBSCRIPTION, CFE_SB.SubRprtMsg.Payload.SubType, "unsub not enabled as expected in CFE_SB_Unsubscribe"))
     {
         CFE_SB_Subscribe(MsgId, TestPipe);
 
        /* Get the caller's Application ID */
-        ExpRtn = CFE_SUCCESS;
-        ActRtn = CFE_ES_GetAppID(&CallerId);
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return from GetAppID in unsubscribe test, "
-                       "exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
-        else
+        if(CHECKVAL(CFE_SUCCESS, CFE_ES_GetAppID(&CallerId), "GetAppID in unsub"))
         {
             /* Subscribe to message: LOCAL */
-            ExpRtn = CFE_SUCCESS;
-            ActRtn = CFE_SB_UnsubscribeFull(MsgId, TestPipe, CFE_SB_LOCAL,
-                                            CallerId);
-
-            if (ActRtn != ExpRtn)
+            if(CHECKVAL(CFE_SUCCESS, CFE_SB_UnsubscribeFull(MsgId, TestPipe, CFE_SB_LOCAL, CallerId), "UnsubscribeFull in sub reporting"))
             {
-                snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                         "Unexpected return from UnsubscribeFull in "
-                           "subscription reporting test, exp=0x%lx, act=0x%lx",
-                         (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                UT_Text(cMsg);
-                TestStat = CFE_FAIL;
-            }
-            else
-            {
-                ExpRtn = 9;
-                ActRtn = UT_GetNumEventsSent();
+                CHECKEVENTS(9);
 
-                if (ActRtn != ExpRtn)
-                {
-                    snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                             "Unexpected rtn from UT_GetNumEventsSent, "
-                               "exp=%lx, act=%lx",
-                           (unsigned long) ExpRtn, (unsigned long) ActRtn);
-                    UT_Text(cMsg);
-                    TestStat = CFE_FAIL;
-                }
-                else if (UT_EventIsInHistory(CFE_SB_UNSUBSCRIPTION_RPT_EID) == false)
-                {
-                    UT_Text("CFE_SB_UNSUBSCRIPTION_RPT_EID not sent");
-                    TestStat = CFE_FAIL;
-                }
+                EVENTUNSENT(CFE_SB_UNSUBSCRIPTION_RPT_EID);
             }
         }
     }
@@ -5341,9 +3326,7 @@ void Test_Unsubscribe_InvalidPipe(void)
     CFE_SB_PipeId_t TestPipe;
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test Unsubscribe, Invalid Pipe");
@@ -5352,36 +3335,11 @@ void Test_Unsubscribe_InvalidPipe(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&TestPipe, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, TestPipe);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, TestPipe + 1);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Unsubscribe(MsgId, TestPipe + 1), "invalid pipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid pipe test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_UNSUB_INV_PIPE_EID) == false)
-    {
-        UT_Text("CFE_SB_UNSUB_INV_PIPE_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_UNSUB_INV_PIPE_EID);
 
     CFE_SB_DeletePipe(TestPipe);
     UT_Report(__FILE__, __LINE__,
@@ -5397,27 +3355,14 @@ void Test_Unsubscribe_InvalidPipeOwner(void)
     CFE_SB_MsgId_t  MsgId = SB_UT_TLM_MID;
     uint32          RealOwner;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Pipe Owner");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "First return was unexpected in unsubscribe - non owner "
-                   "Test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe"), "1st return in unsub, not owner");
 
     CFE_SB_Subscribe(MsgId, PipeId);
 
@@ -5426,36 +3371,11 @@ void Test_Unsubscribe_InvalidPipeOwner(void)
 
     /* Choose a value that is sure not be owner */
     CFE_SB.PipeTbl[PipeId].AppId = RealOwner + 1;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, PipeId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_Unsubscribe(MsgId, PipeId), "2nd return unsub, not owner");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Second return was unexpected in unsubscribe - non owner "
-                   "Test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_UNSUB_INV_CALLER_EID) == false)
-    {
-        UT_Text("CFE_SB_UNSUB_INV_CALLER_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_UNSUB_INV_CALLER_EID);
 
     CFE_SB.PipeTbl[PipeId].AppId = RealOwner;
     CFE_SB_DeletePipe(PipeId);
@@ -5475,9 +3395,7 @@ void Test_Unsubscribe_FirstDestWithMany(void)
     CFE_SB_PipeId_t TestPipe2;
     CFE_SB_PipeId_t TestPipe3;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Unsubscribe First Destination With Many");
@@ -5490,36 +3408,11 @@ void Test_Unsubscribe_FirstDestWithMany(void)
     CFE_SB_Subscribe(MsgId, TestPipe1);
     CFE_SB_Subscribe(MsgId, TestPipe2);
     CFE_SB_Subscribe(MsgId, TestPipe3);
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, TestPipe1);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId, TestPipe1), "unsub 1st dest with many");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in unsubscribe first destination with "
-                   "many, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(7);
 
-    ExpRtn = 7;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(TestPipe1);
     CFE_SB_DeletePipe(TestPipe2);
@@ -5540,9 +3433,7 @@ void Test_Unsubscribe_MiddleDestWithMany(void)
     CFE_SB_PipeId_t TestPipe2;
     CFE_SB_PipeId_t TestPipe3;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Unsubscribe Middle Destination With Many");
@@ -5555,36 +3446,11 @@ void Test_Unsubscribe_MiddleDestWithMany(void)
     CFE_SB_Subscribe(MsgId, TestPipe1);
     CFE_SB_Subscribe(MsgId, TestPipe2);
     CFE_SB_Subscribe(MsgId, TestPipe3);
-    ExpRtn = CFE_SUCCESS;
-    ActRtn = CFE_SB_Unsubscribe(MsgId, TestPipe2);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_Unsubscribe(MsgId, TestPipe2), "unsub mid dest with many");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in unsubscribe middle destination with "
-                   "many, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(7);
 
-    ExpRtn = 7;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(TestPipe1);
     CFE_SB_DeletePipe(TestPipe2);
@@ -5604,9 +3470,7 @@ void Test_Unsubscribe_GetDestPtr(void)
     CFE_SB_PipeId_t TestPipe1;
     CFE_SB_PipeId_t TestPipe2;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Unsubscribe, Get Destination Pointer");
@@ -5626,23 +3490,9 @@ void Test_Unsubscribe_GetDestPtr(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 5;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(5);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(TestPipe1);
     CFE_SB_DeletePipe(TestPipe2);
@@ -5690,45 +3540,18 @@ void Test_SendMsg_API(void)
 */
 void Test_SendMsg_NullPtr(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Null Pointer");
 #endif
 
     SB_ResetUnitTest();
-    ActRtn = CFE_SB_SendMsg(NULL);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_SendMsg(NULL), "null ptr");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in null pointer Test, exp=0x%lx, "
-                   "act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_BAD_ARG_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_BAD_ARG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_BAD_ARG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API", "Null pointer test");
@@ -5741,9 +3564,7 @@ void Test_SendMsg_InvalidMsgId(void)
 {
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Message ID");
@@ -5752,49 +3573,23 @@ void Test_SendMsg_InvalidMsgId(void)
     SB_ResetUnitTest();
     CFE_SB_InitMsg(&TlmPkt, CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1,
                    sizeof(TlmPkt), true);
-    
+
     CFE_SB_SetMsgId(TlmPktPtr, 0xFFFF);
 
-    
+
     CCSDS_WR_APID(TlmPktPtr->Hdr, 0x7FF );
 
 #ifdef MESSAGE_FORMAT_IS_CCSDS_VER_2
-    
+
     CCSDS_WR_SUBSYSTEM_ID(TlmPktPtr->SpacePacket.ApidQ, 0x7E );
-    
+
 #endif
-    
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid message test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_SendMsg(TlmPktPtr), "invalid msg");
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_INV_MSGID_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_INV_MSGID_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_INV_MSGID_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API", "Invalid message ID test");
@@ -5808,9 +3603,7 @@ void Test_SendMsg_NoSubscribers(void)
     CFE_SB_MsgId_t   MsgId = SB_UT_TLM_MID;
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for No Subscribers");
@@ -5818,36 +3611,11 @@ void Test_SendMsg_NoSubscribers(void)
 
     SB_ResetUnitTest();
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "no subs");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in no subscribers test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_NO_SUBS_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_NO_SUBS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_NO_SUBS_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API", "No subscribers test");
@@ -5861,9 +3629,7 @@ void Test_SendMsg_MaxMsgSizePlusOne(void)
     CFE_SB_MsgId_t   MsgId = SB_UT_TLM_MID;
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Maximum Message Size Plus One");
@@ -5871,36 +3637,11 @@ void Test_SendMsg_MaxMsgSizePlusOne(void)
 
     SB_ResetUnitTest();
     CFE_SB_InitMsg(&TlmPkt, MsgId, CFE_MISSION_SB_MAX_SB_MSG_SIZE + 1, false);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SB_MSG_TOO_BIG;
+    CHECKVAL(CFE_SB_MSG_TOO_BIG, CFE_SB_SendMsg(TlmPktPtr), "max msg sz + 1");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in maximum message size plus one test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_MSG_TOO_BIG_EID) == false)
-    {
-        UT_Text("CFE_SB_MSG_TOO_BIG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_MSG_TOO_BIG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API",
@@ -5917,9 +3658,7 @@ void Test_SendMsg_BasicSend(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth = 2;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Basic Send");
@@ -5929,29 +3668,9 @@ void Test_SendMsg_BasicSend(void)
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, PipeId);
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "basic send");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in basic send test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -5969,9 +3688,7 @@ void Test_SendMsg_SequenceCount(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     uint32           PipeDepth = 10;
-    int32            TestStat = CFE_PASS;
-    int32            ExpRtn;
-    int32            ActRtn;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Telemetry Sequence Count");
@@ -5982,32 +3699,9 @@ void Test_SendMsg_SequenceCount(void)
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
     CFE_SB_Subscribe(MsgId, PipeId);
     CCSDS_WR_SEQ(TlmPktPtr->Hdr, 22);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "send in seq cnt");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from rcv 1 in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else if (PtrToMsg == NULL)
+    if(CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "rcv1 in seq cnt") && PtrToMsg == NULL)
     {
         UT_Text("Unexpected NULL return from rcv 1 in sequence count test");
         TestStat = CFE_FAIL;
@@ -6015,39 +3709,15 @@ void Test_SendMsg_SequenceCount(void)
     else if (CCSDS_RD_SEQ(PtrToMsg->Hdr) != 1)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected sequence count for send in sequence count test, "
-                   "exp=1, act=%d",
+                 "Unexpected sequence count for send in sequence count test, exp=1, act=%d",
                  CCSDS_RD_SEQ(PtrToMsg->Hdr));
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ActRtn = CFE_SB_PassMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_PassMsg(TlmPktPtr), "pass in seq cnt");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from pass in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from rcv 2 in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else if (PtrToMsg == NULL)
+    if(CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "rcv 2 in seq cnt") && PtrToMsg == NULL)
     {
         UT_Text("Unexpected NULL return from rcv 2 in sequence count test");
         TestStat = CFE_FAIL;
@@ -6055,38 +3725,14 @@ void Test_SendMsg_SequenceCount(void)
     else if (CCSDS_RD_SEQ(PtrToMsg->Hdr) != 22)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected sequence count for pass in sequence count test, "
-                   "exp=22, act=%d",
+                 "Unexpected sequence count for pass in sequence count test, exp=22, act=%d",
                  CCSDS_RD_SEQ(PtrToMsg->Hdr));
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send 2 in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from rcv 3 in sequence count test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    else if (PtrToMsg == NULL)
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "send 2 in seq cnt");
+    if(CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "rcv 3 in seq cnt") && PtrToMsg == NULL)
     {
         UT_Text("Unexpected NULL return from rcv 3 in sequence count test");
         TestStat = CFE_FAIL;
@@ -6094,30 +3740,15 @@ void Test_SendMsg_SequenceCount(void)
     else if (CCSDS_RD_SEQ(PtrToMsg->Hdr) != 2)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected sequence count for send in sequence count test, "
-                   "exp=2, act=%d",
+                 "Unexpected sequence count for send in sequence count test, exp=2, act=%d",
                  CCSDS_RD_SEQ(PtrToMsg->Hdr));
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6135,9 +3766,7 @@ void Test_SendMsg_QueuePutError(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth = 2;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for QueuePut Error");
@@ -6148,36 +3777,11 @@ void Test_SendMsg_QueuePutError(void)
     CFE_SB_Subscribe(MsgId, PipeId4Error);
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), false);
     UT_SetDeferredRetcode(UT_KEY(OS_QueuePut), 1, OS_ERROR);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "QueuePut err");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in QueuePut error test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_WR_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_Q_WR_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_Q_WR_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId4Error);
     UT_Report(__FILE__, __LINE__,
@@ -6194,9 +3798,7 @@ void Test_SendMsg_PipeFull(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth = 1;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Pipe Full");
@@ -6208,51 +3810,17 @@ void Test_SendMsg_PipeFull(void)
     CFE_SB_Subscribe(MsgId, PipeId);
 
     /* This send should pass */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return1 in pipe full test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "1 pipe full");
 
     /* Tell the QueuePut stub to return OS_QUEUE_FULL on its next call */
     UT_SetDeferredRetcode(UT_KEY(OS_QueuePut), 1, OS_QUEUE_FULL);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "2 pipe full");
 
     /* Pipe overflow causes SendMsg to return CFE_SUCCESS */
-    ExpRtn = CFE_SUCCESS;
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return2 in pipe full test, exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_FULL_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_Q_FULL_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_Q_FULL_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6269,9 +3837,7 @@ void Test_SendMsg_MsgLimitExceeded(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth = 5;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Msg Limit Exceeded");
@@ -6285,52 +3851,16 @@ void Test_SendMsg_MsgLimitExceeded(void)
     CFE_SB_SubscribeEx(MsgId, PipeId, CFE_SB_Default_Qos, 1);
 
     /* First send should pass */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in message limit test1, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "msg lim 1");
 
     /* This send should produce a MsgId to Pipe Limit Exceeded message, but
      * return success
      */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "msg lim 2");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in message limit test2, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_MSGID_LIM_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_MSGID_LIM_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_MSGID_LIM_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6348,9 +3878,7 @@ void Test_SendMsg_GetPoolBufErr(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for GetPoolBufErr");
@@ -6366,36 +3894,11 @@ void Test_SendMsg_GetPoolBufErr(void)
      * allocation failed)
      */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBuf), 1, CFE_ES_ERR_MEM_BLOCK_SIZE);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SB_BUF_ALOC_ERR;
+    CHECKVAL(CFE_SB_BUF_ALOC_ERR, CFE_SB_SendMsg(TlmPktPtr), "GetPoolBufErr 1");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in GetPoolBufErr1 test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_GET_BUF_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_GET_BUF_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_GET_BUF_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6561,9 +4064,7 @@ void Test_SendMsg_ZeroCopySend(void)
     CFE_SB_MsgPtr_t         ZeroCpyMsgPtr = NULL;
     uint32                  PipeDepth = 10;
     CFE_SB_ZeroCopyHandle_t ZeroCpyBufHndl = 0;
-    int32                   ExpRtn;
-    int32                   ActRtn;
-    int32                   TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for CFE_SB_ZeroCopySend");
@@ -6588,45 +4089,12 @@ void Test_SendMsg_ZeroCopySend(void)
 
     /* Test response to a get pool information error */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBufInfo), 1, -1);
-    ActRtn = CFE_SB_ZeroCopySend(ZeroCpyMsgPtr, ZeroCpyBufHndl);
-    ExpRtn = CFE_SB_BUFFER_INVALID;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in zero copy send test (get "
-                   "pool information), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BUFFER_INVALID,CFE_SB_ZeroCopySend(ZeroCpyMsgPtr, ZeroCpyBufHndl),"get pool info");
 
     /* Test a successful zero copy send */
-    ActRtn = CFE_SB_ZeroCopySend(ZeroCpyMsgPtr, ZeroCpyBufHndl);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopySend(ZeroCpyMsgPtr, ZeroCpyBufHndl),"success");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in zero copy send test  "
-                   "(success),exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from rcv in zero copy send test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER),"rcv");
 
     if (PtrToMsg == NULL)
     {
@@ -6643,23 +4111,9 @@ void Test_SendMsg_ZeroCopySend(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6680,9 +4134,7 @@ void Test_SendMsg_ZeroCopyPass(void)
     uint32                  PipeDepth = 10;
     CFE_SB_ZeroCopyHandle_t ZeroCpyBufHndl = 0;
     uint16                  Seq = 22;
-    int32                   ExpRtn;
-    int32                   ActRtn;
-    int32                   TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for CFE_SB_ZeroCopyPass");
@@ -6707,45 +4159,12 @@ void Test_SendMsg_ZeroCopyPass(void)
 
     /* Test response to a get pool information error */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBufInfo), 1, -1);
-    ActRtn = CFE_SB_ZeroCopyPass(ZeroCpyMsgPtr, ZeroCpyBufHndl);
-    ExpRtn = CFE_SB_BUFFER_INVALID;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in zero copy pass test (get "
-                   "pool information) exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BUFFER_INVALID,CFE_SB_ZeroCopyPass(ZeroCpyMsgPtr, ZeroCpyBufHndl),"get pool info");
 
     /* Test a successful zero copy pass */
-    ActRtn = CFE_SB_ZeroCopyPass(ZeroCpyMsgPtr, ZeroCpyBufHndl);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyPass(ZeroCpyMsgPtr, ZeroCpyBufHndl), "send in zero copy pass");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in zero copy pass test "
-                   "(success), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from receive in zero copy pass test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "recv in zero copy pass");
 
     if (PtrToMsg == NULL)
     {
@@ -6755,30 +4174,15 @@ void Test_SendMsg_ZeroCopyPass(void)
     else if (CCSDS_RD_SEQ(PtrToMsg->Hdr) != Seq)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected sequence count for send in sequence count test, "
-                   "exp=%d, act=%d",
+                 "Unexpected sequence count for send in sequence count test, exp=%d, act=%d",
                  Seq, CCSDS_RD_SEQ(PtrToMsg->Hdr));
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -6798,9 +4202,7 @@ void Test_SendMsg_ZeroCopyReleasePtr(void)
     CFE_SB_ZeroCopyHandle_t ZeroCpyBufHndl2 = 0;
     CFE_SB_ZeroCopyHandle_t ZeroCpyBufHndl3 = 0;
     uint16                  MsgSize = 10;
-    int32                   ExpRtn;
-    int32                   ActRtn;
-    int32                   TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for ZeroCopyReleasePtr");
@@ -6810,137 +4212,39 @@ void Test_SendMsg_ZeroCopyReleasePtr(void)
     ZeroCpyMsgPtr1 = CFE_SB_ZeroCopyGetPtr(MsgSize, &ZeroCpyBufHndl1);
     ZeroCpyMsgPtr2 = CFE_SB_ZeroCopyGetPtr(MsgSize, &ZeroCpyBufHndl2);
     ZeroCpyMsgPtr3 = CFE_SB_ZeroCopyGetPtr(MsgSize, &ZeroCpyBufHndl3);
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2), "zero copy rel ptr 1");
 
     /* Test successful release of the first buffer */
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (success 1), "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
 
     /* Test response to an invalid buffer */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBufInfo), 1, -1);
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2);
-    ExpRtn = CFE_SB_BUFFER_INVALID;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (get pool "
-                   "information error), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BUFFER_INVALID,CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2),"get pool info err");
 
     /* Test response to a null message pointer */
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(NULL, ZeroCpyBufHndl2);
-    ExpRtn = CFE_SB_BUFFER_INVALID;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (null "
-                   "message pointer error), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BUFFER_INVALID,CFE_SB_ZeroCopyReleasePtr(NULL, ZeroCpyBufHndl2),"null msg ptr err");
 
     /* Test response to an invalid message pointer */
-    ActRtn = CFE_SB_ZeroCopyReleasePtr((CFE_SB_Msg_t *) 0x1234,
-                                       ZeroCpyBufHndl2);
-    ExpRtn = CFE_SB_BUFFER_INVALID;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (invalid "
-                   "message pointer error), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_BUFFER_INVALID,CFE_SB_ZeroCopyReleasePtr((CFE_SB_Msg_t *) 0x1234, ZeroCpyBufHndl2),"invalid msg ptr err");
 
     /* Test path when return the descriptor to the pool fails in
      * CFE_SB_ZeroCopyReleaseDesc
      */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_PutPoolBuf), 1, -1);
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (return "
-                   "descriptor to buffer error), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2), "retrun desc to buf err");
 
     /* Test path when return the buffer to the pool fails in
      * CFE_SB_ZeroCopyReleasePtr
      */
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_PutPoolBuf), 2, -1);
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (return buffer "
-                   "to pool error), exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr2, ZeroCpyBufHndl2), "return buf to pool err");
 
     /* Test successful release of the second buffer */
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr3, ZeroCpyBufHndl3);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (success 2), "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr3, ZeroCpyBufHndl3), "succ 2");
 
     /* Test successful release of the third buffer */
-    ActRtn = CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr1, ZeroCpyBufHndl1);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_ZeroCopyReleasePtr(ZeroCpyMsgPtr1, ZeroCpyBufHndl1), "succ 3");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in ZeroCopyReleasePtr test (success 3), "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API",
@@ -6958,9 +4262,7 @@ void Test_SendMsg_DisabledDestination(void)
     CFE_SB_MsgPtr_t       TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     CFE_SB_DestinationD_t *DestPtr;
     int32                 PipeDepth;
-    int32                 ExpRtn;
-    int32                 ActRtn;
-    int32                 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Send w/Disabled Destination");
@@ -6973,36 +4275,11 @@ void Test_SendMsg_DisabledDestination(void)
     DestPtr = CFE_SB_GetDestPtr(CFE_SB_ConvertMsgIdtoMsgKey(MsgId), PipeId);
     DestPtr->Active = CFE_SB_INACTIVE;
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "disabled dest");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in disabled destination test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7030,9 +4307,7 @@ void Test_SendMsg_SendWithMetadata(void)
 
     CFE_SB_MsgPtr_t TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPktBufDesc.TlmPkt;
     int32           PipeDepth;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Send with Metadata (SendMsgFull)");
@@ -7045,31 +4320,9 @@ void Test_SendMsg_SendWithMetadata(void)
     CFE_SB_Subscribe(MsgId, PipeId);
     CFE_SB_InitMsg(&TlmPktBufDesc.TlmPkt, MsgId,
                    sizeof(TlmPktBufDesc.TlmPkt), true);
-    ActRtn = CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_DO_NOT_INCREMENT,
-                                CFE_SB_SEND_ZEROCOPY);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_DO_NOT_INCREMENT, CFE_SB_SEND_ZEROCOPY), "send with metadata");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in send with metadata test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7085,9 +4338,7 @@ void Test_SendMsg_InvalidMsgId_ZeroCopy(void)
 {
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Invalid Message ID (ZeroCopy)");
@@ -7105,38 +4356,13 @@ void Test_SendMsg_InvalidMsgId_ZeroCopy(void)
     {
         CFE_SB_InitMsg(TlmPktPtr, CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1,
         		       sizeof(SB_UT_Test_Tlm_t), true);
-        ActRtn = CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM,
-                                    CFE_SB_SEND_ZEROCOPY);
-        ExpRtn = CFE_SB_BAD_ARGUMENT;
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in invalid message ID test, "
-                       "exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
+        CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM,
+                                    CFE_SB_SEND_ZEROCOPY),"invalid msg id test");
     }
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_INV_MSGID_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_INV_MSGID_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_INV_MSGID_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API",
@@ -7152,9 +4378,7 @@ void Test_SendMsg_MaxMsgSizePlusOne_ZeroCopy(void)
     CFE_SB_MsgId_t   MsgId = SB_UT_TLM_MID;
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Maximum Message Size Plus One (ZeroCopy)");
@@ -7171,38 +4395,12 @@ void Test_SendMsg_MaxMsgSizePlusOne_ZeroCopy(void)
     else
     {
         CFE_SB_InitMsg(TlmPktPtr, MsgId, CFE_MISSION_SB_MAX_SB_MSG_SIZE + 1, false);
-        ActRtn = CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM,
-                                    CFE_SB_SEND_ZEROCOPY);
-        ExpRtn = CFE_SB_MSG_TOO_BIG;
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in maximum message size plus one "
-                       "test, exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
+        CHECKVAL(CFE_SB_MSG_TOO_BIG, CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM, CFE_SB_SEND_ZEROCOPY),"max msg sz +1");
     }
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_MSG_TOO_BIG_EID) == false)
-    {
-        UT_Text("CFE_SB_MSG_TOO_BIG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_MSG_TOO_BIG_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API",
@@ -7218,9 +4416,7 @@ void Test_SendMsg_NoSubscribers_ZeroCopy(void)
     CFE_SB_MsgId_t   MsgId = SB_UT_TLM_MID;
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for No Subscribers (ZeroCopy)");
@@ -7237,38 +4433,12 @@ void Test_SendMsg_NoSubscribers_ZeroCopy(void)
     else
     {
         CFE_SB_InitMsg(TlmPktPtr, MsgId, sizeof(SB_UT_Test_Tlm_t), true);
-        ActRtn = CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM,
-                                    CFE_SB_SEND_ZEROCOPY);
-        ExpRtn = CFE_SUCCESS;
-
-        if (ActRtn != ExpRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Unexpected return in no subscribers test, "
-                       "exp=0x%lx, act=0x%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
+        CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsgFull(TlmPktPtr, CFE_SB_INCREMENT_TLM, CFE_SB_SEND_ZEROCOPY), "no sub");
     }
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                     (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SEND_NO_SUBS_EID) == false)
-    {
-        UT_Text("CFE_SB_SEND_NO_SUBS_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SEND_NO_SUBS_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_SendMsg_API",
@@ -7308,9 +4478,7 @@ void Test_RcvMsg_InvalidPipeId(void)
 {
     CFE_SB_MsgPtr_t PtrToMsg;
     CFE_SB_PipeId_t InvalidPipeId = 20;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Rcv - Invalid PipeId Rcv");
@@ -7318,36 +4486,11 @@ void Test_RcvMsg_InvalidPipeId(void)
 
     SB_ResetUnitTest();
     CFE_SB.PipeTbl[InvalidPipeId].InUse = CFE_SB_NOT_IN_USE;
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, InvalidPipeId, CFE_SB_POLL);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_RcvMsg(&PtrToMsg, InvalidPipeId, CFE_SB_POLL),"invalid pipe ID");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid pipe ID test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_BAD_PIPEID_EID) == false)
-    {
-        UT_Text("CFE_SB_BAD_PIPEID_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_BAD_PIPEID_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_RcvMsg_API", "Invalid pipe ID test");
@@ -7362,9 +4505,7 @@ void Test_RcvMsg_InvalidTimeout(void)
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
     int32           TimeOut = -5;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Rcv - Invalid Timeout");
@@ -7372,37 +4513,11 @@ void Test_RcvMsg_InvalidTimeout(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, TimeOut);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_RcvMsg(&PtrToMsg, PipeId, TimeOut),"invalid timeout");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid timeout test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, "
-                   "exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_RCV_BAD_ARG_EID) == false)
-    {
-        UT_Text("CFE_SB_RCV_BAD_ARG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_RCV_BAD_ARG_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7417,9 +4532,7 @@ void Test_RcvMsg_Poll(void)
     CFE_SB_MsgPtr_t PtrToMsg;
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Poll Receive");
@@ -7427,36 +4540,11 @@ void Test_RcvMsg_Poll(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_POLL);
-    ExpRtn = CFE_SB_NO_MESSAGE;
+    CHECKVAL(CFE_SB_NO_MESSAGE,CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_POLL),"poll recv");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in poll receive test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7470,9 +4558,7 @@ void Test_RcvMsg_GetLastSenderNull(void)
 {
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for GetLastSender Null Ptr");
@@ -7480,36 +4566,11 @@ void Test_RcvMsg_GetLastSenderNull(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_GetLastSenderId(NULL, PipeId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_GetLastSenderId(NULL, PipeId),"null ptr");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in GetLastSenderId null pointer test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_LSTSNDER_ERR1_EID) == false)
-    {
-        UT_Text("CFE_SB_LSTSNDER_ERR1_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_LSTSNDER_ERR1_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7526,9 +4587,7 @@ void Test_RcvMsg_GetLastSenderInvalidPipe(void)
     CFE_SB_PipeId_t   InvalidPipeId = 250;
     CFE_SB_SenderId_t *GLSPtr;
     uint32            PipeDepth = 10;
-    int32             ExpRtn;
-    int32             ActRtn;
-    int32             TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for GetLastSender Invalid Pipe");
@@ -7536,36 +4595,11 @@ void Test_RcvMsg_GetLastSenderInvalidPipe(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_GetLastSenderId(&GLSPtr, InvalidPipeId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_GetLastSenderId(&GLSPtr, InvalidPipeId),"invalid pipe");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in GetLastSenderId invalid pipe test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_LSTSNDER_ERR2_EID) == false)
-    {
-        UT_Text("CFE_SB_LSTSNDER_ERR2_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_LSTSNDER_ERR2_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7582,9 +4616,7 @@ void Test_RcvMsg_GetLastSenderInvalidCaller(void)
     CFE_SB_SenderId_t *GLSPtr;
     uint32            PipeDepth = 10;
     uint32            OrigPipeOwner;
-    int32             ExpRtn;
-    int32             ActRtn;
-    int32             TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for GetLastSender Invalid Caller");
@@ -7596,36 +4628,11 @@ void Test_RcvMsg_GetLastSenderInvalidCaller(void)
     /* Change pipe owner ID to execute 'invalid caller' code */
     OrigPipeOwner = CFE_SB.PipeTbl[PipeId].AppId;
     CFE_SB.PipeTbl[PipeId].AppId = OrigPipeOwner + 1;
-    ActRtn = CFE_SB_GetLastSenderId(&GLSPtr, PipeId);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_GetLastSenderId(&GLSPtr, PipeId),"invalid caller");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in GetLastSenderId invalid caller test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_GLS_INV_CALLER_EID) == false)
-    {
-        UT_Text("CFE_SB_GLS_INV_CALLER_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_GLS_INV_CALLER_EID);
 
     /* Restore original pipe owner apid */
     CFE_SB.PipeTbl[PipeId].AppId = OrigPipeOwner;
@@ -7643,9 +4650,7 @@ void Test_RcvMsg_GetLastSenderSuccess(void)
     CFE_SB_PipeId_t   PipeId;
     CFE_SB_SenderId_t *GLSPtr;
     uint32            PipeDepth = 10;
-    int32             ExpRtn;
-    int32             ActRtn;
-    int32             TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for GetLastSender Success");
@@ -7653,30 +4658,9 @@ void Test_RcvMsg_GetLastSenderSuccess(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_GetLastSenderId(&GLSPtr, PipeId);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_GetLastSenderId(&GLSPtr, PipeId), "success");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in GetLastSenderId Success Test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7693,9 +4677,7 @@ void Test_RcvMsg_Timeout(void)
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
     int32           TimeOut = 200;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Timeout Rcv");
@@ -7706,35 +4688,11 @@ void Test_RcvMsg_Timeout(void)
 
     UT_SetDeferredRetcode(UT_KEY(OS_QueueGet), 1, OS_QUEUE_TIMEOUT);
 
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, TimeOut);
-    ExpRtn = CFE_SB_TIME_OUT;
+    CHECKVAL(CFE_SB_TIME_OUT,CFE_SB_RcvMsg(&PtrToMsg, PipeId, TimeOut),"timeout recv");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in timeout receive test, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(1);
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7749,9 +4707,7 @@ void Test_RcvMsg_PipeReadError(void)
     CFE_SB_MsgPtr_t PtrToMsg;
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Pipe Read Error");
@@ -7760,36 +4716,11 @@ void Test_RcvMsg_PipeReadError(void)
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
     UT_SetDeferredRetcode(UT_KEY(OS_QueueGet), 1, OS_ERROR);
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SB_PIPE_RD_ERR;
+    CHECKVAL(CFE_SB_PIPE_RD_ERR,CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER),"pipe read err");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in pipe read error test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_RD_ERR_EID) == false)
-    {
-        UT_Text("CFE_SB_Q_RD_ERR_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_Q_RD_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -7808,9 +4739,7 @@ void Test_RcvMsg_PendForever(void)
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     CFE_SB_PipeD_t   *PipeDscPtr;
     uint32           PipeDepth = 10;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Pend Forever");
@@ -7820,31 +4749,9 @@ void Test_RcvMsg_PendForever(void)
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
     CFE_SB_Subscribe(MsgId, PipeId);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "send in pend forever");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in pend forever test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from receive in pend forever test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "recv in pend forever");
 
     if (PtrToMsg != NULL)
     {
@@ -7855,23 +4762,9 @@ void Test_RcvMsg_PendForever(void)
 #endif
     }
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     PipeDscPtr = CFE_SB_GetPipePtr(PipeId);
     PipeDscPtr->ToTrashBuff = PipeDscPtr->CurrentBuff;
@@ -7889,9 +4782,7 @@ void Test_CleanupApp_API(void)
     CFE_SB_PipeId_t         PipeId;
     CFE_SB_ZeroCopyHandle_t ZeroCpyBufHndl = 0;
     uint16                  PipeDepth = 50;
-    int32                   ExpRtn;
-    int32                   ActRtn;
-    int32                   TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for CleanupApp");
@@ -7926,30 +4817,11 @@ void Test_CleanupApp_API(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(3);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from UT_GetNumEventsSent, "
-                   "exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_DELETED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_DELETED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_DELETED_EID);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_CleanupApp_API", "CleanupApp test");
@@ -7962,9 +4834,7 @@ void Test_RcvMsg_InvalidBufferPtr(void)
 {
     CFE_SB_PipeId_t PipeId;
     uint32          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Rcv - Invalid Buffer Pointer");
@@ -7972,37 +4842,11 @@ void Test_RcvMsg_InvalidBufferPtr(void)
 
     SB_ResetUnitTest();
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
-    ActRtn = CFE_SB_RcvMsg(NULL, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_RcvMsg(NULL, PipeId, CFE_SB_PEND_FOREVER),"invalid buff ptr");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in invalid buffer pointer test, "
-                   "exp=0x%lx, act=0x%lx",
-                   (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, "
-                   "exp=%lx, act=%lx",
-                   (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_RCV_BAD_ARG_EID) == false)
-    {
-        UT_Text("CFE_SB_RCV_BAD_ARG_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_RCV_BAD_ARG_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -8115,18 +4959,17 @@ void Test_CFE_SB_InitMsg_False(void)
 */
 void Test_CFE_SB_MsgHdrSize(void)
 {
-    int32 TestStat;
     uint16 ExpectedSize;
     uint16 ActualSize;
     CCSDS_PriHdr_t   * PktPtr;
     CFE_SB_MsgId_t msgId;
     SB_UT_Test_Cmd_t testCmd;
     SB_UT_Test_Tlm_t testTlm;
-    
+
     CFE_SB_MsgPtr_t MsgPtr = (CFE_SB_MsgPtr_t)&testCmd;
-    
+
     PktPtr = (CCSDS_PriHdr_t*)MsgPtr;
-    
+
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test_CFE_SB_MsgHdrSize");
@@ -8138,13 +4981,13 @@ void Test_CFE_SB_MsgHdrSize(void)
 
     ExpectedSize = sizeof(CFE_SB_CmdHdr_t);
 
-    
+
     CFE_SB_InitMsg(MsgPtr,
                     msgId,
                     sizeof(testCmd),
                     0);
-                    
-    
+
+
     /* Set this to Command Type */
     CCSDS_WR_TYPE(*PktPtr, 1); 
     /* No sec hdr */
@@ -8157,7 +5000,7 @@ void Test_CFE_SB_MsgHdrSize(void)
     {
         TestStat = CFE_FAIL;
     }
-    
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "Test_CFE_SB_MsgHdrSize",
               "Commands with secondary header");
@@ -8170,7 +5013,7 @@ void Test_CFE_SB_MsgHdrSize(void)
                     SB_UT_TLM_MID,
                     sizeof(testCmd),
                     0);
-                    
+
     /* Set this to Command Type */
     CCSDS_WR_TYPE(*PktPtr, 1); 
     /* No sec hdr */
@@ -8187,7 +5030,7 @@ void Test_CFE_SB_MsgHdrSize(void)
               TestStat, "Test_CFE_SB_MsgHdrSize",
               "Commands without secondary header");
 
-    
+
     MsgPtr = (CFE_SB_MsgPtr_t)&testTlm;
     PktPtr = (CCSDS_PriHdr_t*)MsgPtr;
 
@@ -8199,7 +5042,7 @@ void Test_CFE_SB_MsgHdrSize(void)
     /* Set this to Tlm Type */
     CCSDS_WR_TYPE(*PktPtr, 0);
     CCSDS_WR_SHDR(*PktPtr, 1);
-    
+
     ExpectedSize = sizeof(CFE_SB_TlmHdr_t);
 
     ActualSize = CFE_SB_MsgHdrSize(MsgPtr);
@@ -8220,7 +5063,7 @@ void Test_CFE_SB_MsgHdrSize(void)
     /* Set this to Telemetry Type */
     CCSDS_WR_TYPE(*PktPtr, 0); 
     CCSDS_WR_SHDR(*PktPtr, 0);
-    
+
     ExpectedSize = sizeof(CCSDS_PriHdr_t);
     ActualSize = CFE_SB_MsgHdrSize(MsgPtr);
     if (ActualSize != ExpectedSize)
@@ -8244,7 +5087,6 @@ void Test_CFE_SB_GetUserData(void)
     CFE_SB_MsgPtr_t        SBTlmPtr = (CFE_SB_MsgPtr_t) &SBTlm;
     SB_UT_TstPktWoSecHdr_t SBNoSecHdrPkt;
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
-    int32                  TestStat;
     uint8                  *ActualAdrReturned;
     uint8                  *ExpAdrReturned;
     CFE_SB_MsgId_t         msgId;
@@ -8260,11 +5102,11 @@ void Test_CFE_SB_GetUserData(void)
     msgId = SB_UT_CMD_MID;
 
     ExpAdrReturned = (uint8 *) SBCmdPtr + sizeof(CFE_SB_CmdHdr_t);
-    
+
     CFE_SB_InitMsg(SBCmdPtr, msgId, sizeof(SB_UT_Test_Cmd_t), true);
     ActualAdrReturned = CFE_SB_GetUserData(SBCmdPtr);
 
-    
+
     if (ActualAdrReturned != ExpAdrReturned)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
@@ -8306,7 +5148,7 @@ void Test_CFE_SB_GetUserData(void)
     TestStat = CFE_PASS;
     CFE_SB_InitMsg(SBTlmPtr, SB_UT_TLM_MID, sizeof(SB_UT_Test_Tlm_t), true);
     ActualAdrReturned = CFE_SB_GetUserData(SBTlmPtr);
-    
+
     ExpAdrReturned = (uint8 *) SBTlmPtr + sizeof(CFE_SB_TlmHdr_t);
 
     if (ActualAdrReturned != ExpAdrReturned)
@@ -8354,7 +5196,6 @@ void Test_CFE_SB_SetGetMsgId(void)
     SB_UT_Test_Cmd_t SBCmd;
     CFE_SB_MsgPtr_t  SBCmdPtr = (CFE_SB_MsgPtr_t) &SBCmd;
     CFE_SB_MsgId_t   MsgIdReturned;
-    uint32           TestStat;
     uint32           i;
 
 #ifdef UT_VERBOSE
@@ -8390,12 +5231,12 @@ void Test_CFE_SB_SetGetMsgId(void)
     SB_ResetUnitTest();
     TestStat = CFE_PASS;
 
-    
+
     /* Looping through every value from 0 to 0xffff */
     for (i = 0; i <= 0xFFFF; i++)
     {
         CFE_SB_SetMsgId(SBCmdPtr, i);
-        
+
         if (CFE_SB_GetMsgId(SBCmdPtr) != i)
         {
             break;
@@ -8417,7 +5258,7 @@ void Test_CFE_SB_SetGetUserDataLength(void)
     CFE_SB_MsgPtr_t        SBTlmPtr = (CFE_SB_MsgPtr_t) &SBTlm;
     SB_UT_TstPktWoSecHdr_t SBNoSecHdrPkt;
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
-    int32                  SetSize, TestStat;
+    int32                  SetSize;
     uint16                 SizeReturned;
     int16                  ActualPktLenField;
     int16                  ExpPktLenField;
@@ -8432,12 +5273,12 @@ void Test_CFE_SB_SetGetUserDataLength(void)
     /* Loop through all pkt length values for cmd pkts w/sec hdr */
     SB_ResetUnitTest();
     TestStat = CFE_PASS;
-    
+
     msgId = SB_UT_CMD_MID;
 
     CFE_SB_InitMsg(SBCmdPtr, msgId, sizeof(SB_UT_Test_Cmd_t), true);
 
-    
+
     for (SetSize = 0; SetSize < 0x10000; SetSize++)
     {
         CFE_SB_SetUserDataLength(SBCmdPtr, SetSize);
@@ -8466,12 +5307,12 @@ void Test_CFE_SB_SetGetUserDataLength(void)
     /* Loop through all pkt length values for cmd pkts wo/sec hdr */
     SB_ResetUnitTest();
     TestStat = CFE_PASS;
-    
+
     msgId = SB_UT_TLM_MID;
 
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, msgId);
     CCSDS_WR_SHDR(*(CCSDS_PriHdr_t*)SBNoSecHdrPktPtr, 0);
-    
+
     for (SetSize = 0; SetSize < 0x10000; SetSize++)
     {
         CFE_SB_SetUserDataLength(SBNoSecHdrPktPtr, SetSize);
@@ -8501,15 +5342,15 @@ void Test_CFE_SB_SetGetUserDataLength(void)
     TestStat = CFE_PASS;
 
     msgId = SB_UT_TLM_MID;
-    
+
     CFE_SB_InitMsg(SBTlmPtr, msgId, sizeof(SB_UT_Test_Tlm_t), true);
-    
+
     for (SetSize = 0; SetSize < 0x10000; SetSize++)
     {
         CFE_SB_SetUserDataLength(SBTlmPtr, SetSize);
         SizeReturned = CFE_SB_GetUserDataLength(SBTlmPtr);
         ActualPktLenField = UT_GetActualPktLenField(SBTlmPtr);
-        
+
         ExpPktLenField = sizeof(CCSDS_TelemetryPacket_t) + SetSize - sizeof(CCSDS_PriHdr_t) - 1; /* SecHdrSize + data - 1 */
 
         if (SizeReturned != SetSize ||
@@ -8534,11 +5375,11 @@ void Test_CFE_SB_SetGetUserDataLength(void)
     TestStat = CFE_PASS;
 
     msgId = SB_UT_TLM_MID;
-    
+
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, msgId);
 
     CCSDS_WR_SHDR(*(CCSDS_PriHdr_t*)SBNoSecHdrPktPtr, 0);
-        
+
     for (SetSize = 0; SetSize < 0x10000; SetSize++)
     {
         CFE_SB_SetUserDataLength(SBNoSecHdrPktPtr, SetSize);
@@ -8575,7 +5416,7 @@ void Test_CFE_SB_SetGetTotalMsgLength(void)
     CFE_SB_MsgPtr_t        SBTlmPtr = (CFE_SB_MsgPtr_t) &SBTlm;
     SB_UT_TstPktWoSecHdr_t SBNoSecHdrPkt;
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
-    int32                  SetSize, TestStat;
+    int32                  SetSize;
     uint16                 TotalMsgSizeReturned;
     int16                  ActualPktLenField;
     int16                  ExpPktLenField;
@@ -8715,7 +5556,7 @@ void Test_CFE_SB_SetGetMsgTime(void)
     SB_UT_TstPktWoSecHdr_t SBNoSecHdrPkt;
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
     CFE_TIME_SysTime_t     SetTime, GetTime;
-    int32                  RtnFromSet, TestStat;
+    int32                  RtnFromSet;
     CFE_SB_MsgId_t         msgId;
 
 #ifdef UT_VERBOSE
@@ -8731,7 +5572,7 @@ void Test_CFE_SB_SetGetMsgTime(void)
 
     /* Set MsgId */
     CFE_SB_SetMsgId(SBCmdPtr, SB_UT_CMD_MID);
-    
+
 
     SetTime.Seconds = 0x4321;
     SetTime.Subseconds = 0x8765;
@@ -8778,7 +5619,7 @@ void Test_CFE_SB_SetGetMsgTime(void)
     /* Set MsgId */
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, SB_UT_TLM_MID);
     CCSDS_WR_SHDR(*(CCSDS_PriHdr_t*)SBNoSecHdrPktPtr, 0);
-    
+
 
     SetTime.Seconds = 0x4321;
     SetTime.Subseconds = 0x8765;
@@ -8821,7 +5662,7 @@ void Test_CFE_SB_SetGetMsgTime(void)
 
     /* Set MsgId to all f's */
     memset(SBTlmPtr, 0xff, sizeof(SBTlm));
-    
+
     msgId = SB_UT_TLM_MID;
 
     /* Set MsgId to 0x0805 */
@@ -8919,7 +5760,7 @@ void Test_CFE_SB_TimeStampMsg(void)
     CFE_SB_MsgPtr_t    SBTlmPtr = (CFE_SB_MsgPtr_t) &SBTlm;
     CFE_TIME_SysTime_t GetTime;
     uint32             ExpSecs;
-    int32              TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test_CFE_SB_TimeStampMsg");
@@ -8982,7 +5823,7 @@ void Test_CFE_SB_SetGetCmdCode(void)
     CFE_SB_MsgPtr_t        SBTlmPtr = (CFE_SB_MsgPtr_t) &SBTlm;
     SB_UT_TstPktWoSecHdr_t SBNoSecHdrPkt;
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
-    int32                  TestStat, RtnFromSet, ExpRtnFrmSet;
+    int32                  RtnFromSet, ExpRtnFrmSet;
     uint16                 CmdCodeSet, CmdCodeReturned;
     uint8                  ActualCmdCodeField;
     int16                  ExpCmdCode;
@@ -9007,13 +5848,13 @@ void Test_CFE_SB_SetGetCmdCode(void)
     CFE_SB_InitMsg(SBCmdPtr, msgId, sizeof(SB_UT_Test_Cmd_t), true);
 
     PktPtr = (CCSDS_PriHdr_t*)SBCmdPtr;
-    
+
     CCSDS_WR_SHDR(*PktPtr,1);
-    
+
     for (CmdCodeSet = 0; CmdCodeSet < 0x100; CmdCodeSet++)
     {
         RtnFromSet = CFE_SB_SetCmdCode(SBCmdPtr, CmdCodeSet);
-        
+
         ExpRtnFrmSet = CFE_SUCCESS;
         CmdCodeReturned = CFE_SB_GetCmdCode(SBCmdPtr);
         ActualCmdCodeField = UT_GetActualCmdCodeField(SBCmdPtr);
@@ -9053,11 +5894,11 @@ void Test_CFE_SB_SetGetCmdCode(void)
 
     /* Set MsgId */
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, SB_UT_TLM_MID);
-    
+
     PktPtr = (CCSDS_PriHdr_t*)SBNoSecHdrPktPtr;
-    
+
     CCSDS_WR_SHDR(*PktPtr,0);
-    
+
     for (CmdCodeSet = 0; CmdCodeSet < 0x100; CmdCodeSet++)
     {
         RtnFromSet = CFE_SB_SetCmdCode(SBNoSecHdrPktPtr, CmdCodeSet);
@@ -9100,9 +5941,9 @@ void Test_CFE_SB_SetGetCmdCode(void)
     CFE_SB_SetMsgId(SBTlmPtr, SB_UT_TLM_MID);
 
     PktPtr = (CCSDS_PriHdr_t*)SBTlmPtr;
-    
+
     CCSDS_WR_SHDR(*PktPtr,1);
-    
+
     for (CmdCodeSet = 0; CmdCodeSet < 0x100; CmdCodeSet++)
     {
         RtnFromSet = CFE_SB_SetCmdCode(SBTlmPtr, CmdCodeSet);
@@ -9145,9 +5986,9 @@ void Test_CFE_SB_SetGetCmdCode(void)
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, SB_UT_TLM_MID);
 
     PktPtr = (CCSDS_PriHdr_t*)SBNoSecHdrPktPtr;
-    
+
     CCSDS_WR_SHDR(*PktPtr,0);
-    
+
     for (CmdCodeSet = 0; CmdCodeSet < 0x100; CmdCodeSet++)
     {
         RtnFromSet = CFE_SB_SetCmdCode(SBNoSecHdrPktPtr, CmdCodeSet);
@@ -9192,7 +6033,6 @@ void Test_CFE_SB_ChecksumUtils(void)
     CFE_SB_MsgPtr_t        SBNoSecHdrPktPtr = (CFE_SB_MsgPtr_t) &SBNoSecHdrPkt;
     uint16                 RtnFrmGet, ExpRtnFrmGet;
     bool                RtnFrmValidate, ExpRtnFrmVal;
-    int32                  TestStat;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test_CFE_SB_ChecksumUtils");
@@ -9206,11 +6046,11 @@ void Test_CFE_SB_ChecksumUtils(void)
     CFE_SB_InitMsg(SBCmdPtr, 0x1805, sizeof(SBCmd), true);
 
     CCSDS_WR_SID( (*((CCSDS_PriHdr_t*) SBCmdPtr)), 0x1805 );
-    
+
     /* Set checksum field */
-    
+
     CFE_SB_GenerateChecksum(SBCmdPtr);
-    
+
     RtnFrmGet = CFE_SB_GetChecksum(SBCmdPtr);
 #ifndef MESSAGE_FORMAT_IS_CCSDS_VER_2
     ExpRtnFrmGet = 0x2f;
@@ -9238,7 +6078,7 @@ void Test_CFE_SB_ChecksumUtils(void)
      * return false
      */
     CCSDS_WR_SID( (*((CCSDS_PriHdr_t*) SBCmdPtr)), 0x1806 );
-    
+
     RtnFrmValidate = CFE_SB_ValidateChecksum(SBCmdPtr);
     ExpRtnFrmVal = false;
 
@@ -9264,9 +6104,9 @@ void Test_CFE_SB_ChecksumUtils(void)
     CFE_SB_InitMsg(SBNoSecHdrPktPtr, 0x1005,
                    sizeof(SBNoSecHdrPkt), true);
 
-    
+
     CCSDS_WR_SHDR( SBNoSecHdrPktPtr->Hdr, 0 );
-    
+
     /* Set checksum field */
     CFE_SB_GenerateChecksum(SBNoSecHdrPktPtr);
     RtnFrmGet = CFE_SB_GetChecksum(SBNoSecHdrPktPtr);
@@ -9292,7 +6132,7 @@ void Test_CFE_SB_ChecksumUtils(void)
      * return false
      */
     CFE_SB_SetMsgId(SBNoSecHdrPktPtr, SB_UT_TLM_MID);
-    
+
     CCSDS_WR_SHDR( SBCmdPtr->Hdr, 0 );
     RtnFrmValidate = CFE_SB_ValidateChecksum(SBNoSecHdrPktPtr);
     ExpRtnFrmVal = false;
@@ -9416,12 +6256,12 @@ void Test_CFE_SB_ChecksumUtils(void)
 */
 void Test_CFE_SB_ValidateMsgId(void)
 {
-    
+
     CFE_SB_MsgId_t        MsgId;
     uint32                ActualReturn;
 
     SB_ResetUnitTest();
-    
+
     /* Validate Msg Id */
     MsgId = CFE_PLATFORM_SB_HIGHEST_VALID_MSGID;
     ActualReturn = CFE_SB_ValidateMsgId(MsgId);
@@ -9430,11 +6270,11 @@ void Test_CFE_SB_ValidateMsgId(void)
               ActualReturn == CFE_SUCCESS,
               "CFE_SB_ValidateMsgId",
               "Testing validation for a valid MsgId");
-    
+
     /* Test for invalid msg id */
     MsgId = CFE_PLATFORM_SB_HIGHEST_VALID_MSGID + 1;
     ActualReturn = CFE_SB_ValidateMsgId(MsgId);
-    
+
     UT_Report(__FILE__, __LINE__,
               ActualReturn == CFE_SB_FAILED,
               "CFE_SB_ValidateMsgId",
@@ -9466,49 +6306,28 @@ void Test_SB_SpecialCases(void)
 void Test_SB_IdxPushPop()
 {
     int32           i;
-    int32           ExpRtn;
-    int32           ActRtn;
     CFE_SB_MsgRouteIdx_t Idx;
-    int32           TestStat = CFE_PASS;
-    
+    TestStat = CFE_PASS;
+
 #ifdef UT_VERBOSE
     UT_Text("Begin Test Test_SB_IdxPushPop");
 #endif    
-    
+
     SB_ResetUnitTest();
 
     CFE_SB_InitIdxStack();
-    
+
     for (i = 0; i < CFE_PLATFORM_SB_MAX_MSG_IDS; i++)
     {
         /* Subscribe to maximum number of messages */
         Idx = CFE_SB_RouteIdxPop_Unsync();
-        ActRtn = CFE_SB_RouteIdxToValue(Idx);
-        ExpRtn = i;
-        if (ExpRtn != ActRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Pop ExpRtn (%d) != ActRtn(%d)",
-                     (int)ExpRtn, (int)ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
+        CHECKVAL(i,CFE_SB_RouteIdxToValue(Idx),"Pop");
     }
 
-    
+
     Idx = CFE_SB_RouteIdxPop_Unsync();
-    ActRtn = CFE_SB_RouteIdxToValue(Idx);
-    ExpRtn = CFE_SB_RouteIdxToValue(CFE_SB_INVALID_ROUTE_IDX);
-    
-    if (ExpRtn != ActRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Pop ExpRtn (%d) != ActRtn(%d)",
-                 (int)ExpRtn, (int)ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    CHECKVAL(CFE_SB_RouteIdxToValue(CFE_SB_INVALID_ROUTE_IDX),CFE_SB_RouteIdxToValue(Idx), "Pop");
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_IdxPop_Unsync",
               "Popped all subscription indexes");
@@ -9525,31 +6344,10 @@ void Test_SB_IdxPushPop()
     {
         /* Un-subscribe from all messages */
         CFE_SB_RouteIdxPush_Unsync(CFE_SB_ValueToRouteIdx(i));
-        ActRtn = CFE_SUCCESS;
-        ExpRtn = CFE_SUCCESS;
-        if (ExpRtn != ActRtn)
-        {
-            snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                     "Push ExpRtn (%d) != ActRtn(%d)",
-                     (int)ExpRtn, (int)ActRtn);
-            UT_Text(cMsg);
-            TestStat = CFE_FAIL;
-        }
     }
-    
+
     CFE_SB_RouteIdxPush_Unsync(CFE_SB_ValueToRouteIdx(i));
-    ActRtn = CFE_SUCCESS;
-    ExpRtn = CFE_SUCCESS;
-    
-    if (ExpRtn != ActRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Push ExpRtn (%d) != ActRtn(%d)",
-                 (int)ExpRtn, (int)ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_IdxPush_Unsync",
               "Pushed all un-subscription indexes");
@@ -9564,9 +6362,7 @@ void Test_OS_MutSem_ErrLogic(void)
     CFE_SB_PipeId_t PipeId;
     CFE_SB_MsgId_t  MsgId = SB_UT_CMD_MID;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test Shared Semaphore Give/Take Failure");
@@ -9577,29 +6373,11 @@ void Test_OS_MutSem_ErrLogic(void)
     UT_SetDeferredRetcode(UT_KEY(OS_MutSemGive), 2, CFE_OS_SEM_FAILURE);
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, PipeId);
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(2);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -9615,9 +6393,7 @@ void Test_GetPipeName_ErrLogic(void)
     CFE_SB_PipeId_t PipeId;
     char            *CharStar;
     uint16          PipeDepth = 50;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test GetPipeName Error");
@@ -9636,23 +6412,9 @@ void Test_GetPipeName_ErrLogic(void)
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 1;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(1);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_PIPE_ADDED_EID) == false)
-    {
-        UT_Text("CFE_SB_PIPE_ADDED_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_PIPE_ADDED_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
@@ -9667,9 +6429,7 @@ void Test_ReqToSendEvent_ErrLogic(void)
 {
     uint32 TaskId = 13;
     uint32 Bit = 5;
-    int32  ExpRtn;
-    int32  ActRtn;
-    int32  TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test ReqToSendEvent Error");
@@ -9681,44 +6441,14 @@ void Test_ReqToSendEvent_ErrLogic(void)
      * the specified task
      */
     CFE_SB.StopRecurseFlags[TaskId] = 0x0000;
-    ExpRtn = CFE_SB_GRANTED;
-    ActRtn = CFE_SB_RequestToSendEvent(TaskId, Bit);
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn when bit not set, exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SB_GRANTED,CFE_SB_RequestToSendEvent(TaskId, Bit),"bit not set");
 
     /* Call the function a second time; the result should indicate that the
      * bit is already set
      */
-    ExpRtn = CFE_SB_DENIED;
-    ActRtn = CFE_SB_RequestToSendEvent(TaskId, Bit);
+    CHECKVAL(CFE_SB_DENIED,CFE_SB_RequestToSendEvent(TaskId, Bit),"bit set");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn when bit set, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_RequestToSendEvent",
@@ -9731,38 +6461,16 @@ void Test_ReqToSendEvent_ErrLogic(void)
 */
 void Test_PutDestBlk_ErrLogic(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test PutDestBlk Error");
 #endif
 
     SB_ResetUnitTest();
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_PutDestinationBlk(NULL);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_PutDestinationBlk(NULL),"putdestblk");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_PutDestinationBlk",
@@ -9774,9 +6482,7 @@ void Test_PutDestBlk_ErrLogic(void)
 */
 void Test_CFE_SB_GetPipeIdx(void)
 {
-    int32 ExpRtn;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test GetPipeIdx");
@@ -9785,29 +6491,9 @@ void Test_CFE_SB_GetPipeIdx(void)
     SB_ResetUnitTest();
     CFE_SB.PipeTbl[0].PipeId = 0;
     CFE_SB.PipeTbl[0].InUse = CFE_SB_NOT_IN_USE;
-    ExpRtn = CFE_SB_INVALID_PIPE;
-    ActRtn = CFE_SB_GetPipeIdx(0);
+    CHECKVAL(CFE_SB_INVALID_PIPE,CFE_SB_GetPipeIdx(0),"GetPipeIdx");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_GetPipeIdx",
@@ -9819,9 +6505,9 @@ void Test_CFE_SB_GetPipeIdx(void)
 */
 void Test_CFE_SB_Buffers(void)
 {
-    int32 ExpRtn = sizeof(CFE_SB_BufferD_t) * 4;
-    int32 ActRtn;
-    int32 TestStat = CFE_PASS;
+    int ActRtn;
+    int ExpRtn = sizeof(CFE_SB_BufferD_t) * 4;
+    TestStat = CFE_PASS;
     CFE_SB_BufferD_t *bd;
 
 #ifdef UT_VERBOSE
@@ -9837,23 +6523,13 @@ void Test_CFE_SB_Buffers(void)
     if (ActRtn != ExpRtn)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected PeakmemInUse value, exp=%lx, act=%lx",
+                 "Unexpected PeakmemInUse value, exp=0x%lx, act=0x%lx",
                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_GetBufferFromPool",
@@ -9868,86 +6544,36 @@ void Test_CFE_SB_Buffers(void)
     if (ActRtn != ExpRtn)
     {
         snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected SBBuffersInUse value, exp=%lx, act=%lx",
+                 "Unexpected SBBuffersInUse value, exp=0x%lx, act=0x%lx",
                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
         UT_Text(cMsg);
         TestStat = CFE_FAIL;
     }
 
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_ReturnBufferToPool",
               "ReturnBufferToPool branch path coverage test");
 
     TestStat = CFE_PASS;
-    ExpRtn = 0;
     bd->UseCount = 0;
     CFE_SB_DecrBufUseCnt(bd);
-    ActRtn = bd->UseCount;
+    CHECKVAL(0,bd->UseCount,"UseCount");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected UseCount value, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_DecrBufUseCnt",
               "DecrBufUseCnt branch path coverage test");
 
     TestStat = CFE_PASS;
-    ExpRtn = 0;
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_PutPoolBuf), 1, -1);
     CFE_SB.StatTlmMsg.Payload.MemInUse = 0;
     CFE_SB_PutDestinationBlk((CFE_SB_DestinationD_t *) bd);
-    ActRtn = CFE_SB.StatTlmMsg.Payload.MemInUse;
+    CHECKVAL(0,CFE_SB.StatTlmMsg.Payload.MemInUse, "MemInUse");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected MemInUse value, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_PutDestinationBlk",
@@ -9961,9 +6587,7 @@ void Test_CFE_SB_BadPipeInfo(void)
 {
     CFE_SB_PipeId_t PipeId;
     uint16          PipeDepth = 10;
-    int32           ExpRtn;
-    int32           ActRtn;
-    int32           TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
     CFE_SB_Qos_t    CFE_SB_Default_Qos;
 
 #ifdef UT_VERBOSE
@@ -9976,29 +6600,9 @@ void Test_CFE_SB_BadPipeInfo(void)
     /* Set the pipe ID to an erroneous value and attempt to delete the pipe */
     CFE_SB.PipeTbl[0].PipeId = 1;
     CFE_SB.PipeTbl[0].InUse = 1;
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_DeletePipeFull(0, 0);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT, CFE_SB_DeletePipeFull(0, 0), "DeletePipeFull");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_DeletePipeFull",
@@ -10008,30 +6612,10 @@ void Test_CFE_SB_BadPipeInfo(void)
     CFE_SB.PipeTbl[0].PipeId = 0;
 
     TestStat = CFE_PASS;
-    ExpRtn = CFE_SB_BAD_ARGUMENT;
-    ActRtn = CFE_SB_SubscribeFull(0 ,0, CFE_SB_Default_Qos,
-                                  CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT, 2);
+    CHECKVAL(CFE_SB_BAD_ARGUMENT,CFE_SB_SubscribeFull(0 ,0, CFE_SB_Default_Qos,
+                                  CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT, 2), "subfull");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 3;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(3);
 
     CFE_SB_DeletePipe(PipeId);
 
@@ -10052,9 +6636,7 @@ void Test_SB_SendMsgPaths(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     int32            PipeDepth = 2;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for SendMsgFull paths");
@@ -10068,11 +6650,7 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB.StopRecurseFlags[1] |= CFE_BIT(CFE_SB_SEND_NO_SUBS_EID_BIT);
     CFE_SB_ProcessCmdPipePkt();
 
-    if (UT_EventIsInHistory(CFE_SB_SEND_NO_SUBS_EID) == true)
-    {
-        UT_Text("CFE_SB_SEND_NO_SUBS_EID sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTSENT(CFE_SB_SEND_NO_SUBS_EID);
 
     CFE_SB.HKTlmMsg.Payload.MsgSendErrorCounter = 0;
     CFE_SB.StopRecurseFlags[1] |= CFE_BIT(CFE_SB_GET_BUF_ERR_EID_BIT);
@@ -10080,37 +6658,11 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB.MsgMap[CFE_SB_MsgKeyToValue(CFE_SB_ConvertMsgIdtoMsgKey(MsgId))] = CFE_SB_INVALID_ROUTE_IDX;
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_GetPoolBuf), 1, CFE_ES_ERR_MEM_BLOCK_SIZE);
     CFE_SB_ProcessCmdPipePkt();
-    ExpRtn = 0;
-    ActRtn = CFE_SB.HKTlmMsg.Payload.MsgSendErrorCounter;
+    CHECKVAL(0,CFE_SB.HKTlmMsg.Payload.MsgSendErrorCounter,"MsgSendErrorCounter in send no subs");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected MsgSendErrorCounter in send no subs test, "
-                   "exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    EVENTSENT(CFE_SB_GET_BUF_ERR_EID);
 
-    if (UT_EventIsInHistory(CFE_SB_GET_BUF_ERR_EID) == true)
-    {
-        UT_Text("CFE_SB_GET_BUF_ERR_EID sent");
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 0;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent (send no subs), "
-                   "exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(0);
 
     CFE_SB.StopRecurseFlags[1] = 0;
 
@@ -10121,31 +6673,9 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "TestPipe");
     CFE_SB_Subscribe(MsgId, PipeId);
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "cmd as tlm");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in cmd as tlm test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent (cmd as tlm), "
-                   "exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
     CFE_SB_DeletePipe(PipeId);
 
@@ -10159,39 +6689,12 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB_SubscribeEx(MsgId, PipeId, CFE_SB_Default_Qos, 1);
 
     /* First send should pass */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in pipe message limit test 1, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "pipe msg lim 1");
 
     CFE_SB.StopRecurseFlags[1] |= CFE_BIT(CFE_SB_MSGID_LIM_ERR_EID_BIT);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
     CFE_SB.StopRecurseFlags[1] = 0;
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in pipe message limit test 2, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_MSGID_LIM_ERR_EID) == true)
-    {
-        UT_Text("CFE_SB_MSGID_LIM_ERR_EID sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTSENT(CFE_SB_MSGID_LIM_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
 
@@ -10202,54 +6705,17 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB_Subscribe(MsgId, PipeId);
 
     /* This send should pass */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return1 in pipe full test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "pipe full");
 
     /* Tell the QueuePut stub to return OS_QUEUE_FULL on its next call */
     UT_SetDeferredRetcode(UT_KEY(OS_QueuePut), 1, OS_QUEUE_FULL);
     CFE_SB.StopRecurseFlags[1] |= CFE_BIT(CFE_SB_Q_FULL_ERR_EID_BIT);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "pipe full 2");
     CFE_SB.StopRecurseFlags[1] = 0;
-    ExpRtn = CFE_SUCCESS;
+    
+    EVENTSENT(CFE_SB_Q_FULL_ERR_EID_BIT);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return2 in pipe full test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_FULL_ERR_EID_BIT) == true)
-    {
-        UT_Text("CFE_SB_Q_FULL_ERR_EID_BIT sent");
-        TestStat = CFE_FAIL;
-    }
-
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent (pipe full), "
-                   "exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
     CFE_SB_DeletePipe(PipeId);
 
@@ -10260,42 +6726,16 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), false);
     UT_SetDeferredRetcode(UT_KEY(OS_QueuePut), 1, OS_ERROR);
     CFE_SB.StopRecurseFlags[1] |= CFE_BIT(CFE_SB_Q_WR_ERR_EID_BIT);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
+    CFE_SB_SendMsg(TlmPktPtr);
     CFE_SB.StopRecurseFlags[1] = 0;
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "n pipe write error");
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return in n pipe write error error test, "
-                   "exp=0x%lx, act=0x%lx",
-                 (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKEVENTS(2);
 
-    ExpRtn = 2;
-    ActRtn = UT_GetNumEventsSent();
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent (pipe write "
-                   "error), exp=%ld, act=%ld",
-                 (long) ExpRtn, (long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_Q_WR_ERR_EID) == true)
-    {
-        UT_Text("CFE_SB_Q_WR_ERR_EID sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTSENT(CFE_SB_Q_WR_ERR_EID);
 
     CFE_SB_DeletePipe(PipeId);
-    
+
 
     /* Setup Test skipping sending to a pipe when the pipe option is set to ignore */
     SB_ResetUnitTest();
@@ -10303,24 +6743,13 @@ void Test_SB_SendMsgPaths(void)
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "SkipPipe");
     CFE_SB_Subscribe(MsgId, PipeId);
     CFE_SB_SetPipeOpts(PipeId, CFE_SB_PIPEOPTS_IGNOREMINE);
-    
-    /* Test skipping this pipe and the send should pass */
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return1 in pipe ignore test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-    
+    /* Test skipping this pipe and the send should pass */
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "pipe ignore");
+
     CFE_SB_SetPipeOpts(PipeId, 0);
     CFE_SB_DeletePipe(PipeId);
-    
+
     UT_Report(__FILE__, __LINE__,
               TestStat, "CFE_SB_SendMsgFull",
               "Send message paths test");
@@ -10338,9 +6767,7 @@ void Test_RcvMsg_UnsubResubPath(void)
     SB_UT_Test_Tlm_t TlmPkt;
     CFE_SB_MsgPtr_t  TlmPktPtr = (CFE_SB_MsgPtr_t) &TlmPkt;
     uint32           PipeDepth = 10;
-    int32            ExpRtn;
-    int32            ActRtn;
-    int32            TestStat = CFE_PASS;
+    TestStat = CFE_PASS;
 
 #ifdef UT_VERBOSE
     UT_Text("Begin Test for Unsubscribe/Resubscribe Path");
@@ -10350,33 +6777,11 @@ void Test_RcvMsg_UnsubResubPath(void)
     CFE_SB_CreatePipe(&PipeId, PipeDepth, "RcvMsgTestPipe");
     CFE_SB_InitMsg(&TlmPkt, MsgId, sizeof(TlmPkt), true);
     CFE_SB_Subscribe(MsgId, PipeId);
-    ActRtn = CFE_SB_SendMsg(TlmPktPtr);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from send in unsub/resub path test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_SendMsg(TlmPktPtr), "send in unsub/resub path");
 
     CFE_SB_Unsubscribe(MsgId, PipeId);
     CFE_SB_Subscribe(MsgId, PipeId);
-    ActRtn = CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER);
-    ExpRtn = CFE_SUCCESS;
-
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected return from receive in unsub/resub path test, "
-                   "exp=0x%lx, act=0x%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    CHECKVAL(CFE_SUCCESS, CFE_SB_RcvMsg(&PtrToMsg, PipeId, CFE_SB_PEND_FOREVER), "recv in unsub/resub path");
 
     if (PtrToMsg != NULL)
     {
@@ -10388,23 +6793,9 @@ void Test_RcvMsg_UnsubResubPath(void)
 #endif
     }
 
-    ExpRtn = 4;
-    ActRtn = UT_GetNumEventsSent();
+    CHECKEVENTS(4);
 
-    if (ActRtn != ExpRtn)
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "Unexpected rtn from UT_GetNumEventsSent, exp=%lx, act=%lx",
-                (unsigned long) ExpRtn, (unsigned long) ActRtn);
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
-
-    if (UT_EventIsInHistory(CFE_SB_SUBSCRIPTION_RCVD_EID) == false)
-    {
-        UT_Text("CFE_SB_SUBSCRIPTION_RCVD_EID not sent");
-        TestStat = CFE_FAIL;
-    }
+    EVENTUNSENT(CFE_SB_SUBSCRIPTION_RCVD_EID);
 
     CFE_SB_DeletePipe(PipeId);
     UT_Report(__FILE__, __LINE__,
