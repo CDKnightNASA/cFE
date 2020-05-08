@@ -1542,7 +1542,7 @@ void Test_SB_Cmds_SendPrevSubs(void)
          * SB subscription list and thus we must skip adding 0x0D to the list
          * as we were going from MSGID 0-45 (0x00-0x2D)
          * */
-        if (i != CFE_SB_ALLSUBS_TLM_MID)
+        if (!CFE_SB_MsgId_Equal(CFE_SB_ValueToMsgId(i), CFE_SB_ALLSUBS_TLM_MID))
         {
             NumEvts += 2;
             SETUP(CFE_SB_Subscribe(CFE_SB_ValueToMsgId(i), PipeId1));
@@ -1561,7 +1561,7 @@ void Test_SB_Cmds_SendPrevSubs(void)
      */
     for (; i < CFE_SB_SUB_ENTRIES_PER_PKT * 3; i++)
     {
-        SETUP(CFE_SB_Subscribe(i, PipeId1));
+        SETUP(CFE_SB_Subscribe(CFE_SB_ValueToMsgId(i), PipeId1));
         NumEvts += 2;
     }
 
@@ -4575,7 +4575,6 @@ void Test_CFE_SB_SetGetMsgId(void)
 {
     SB_UT_Test_Cmd_t SBCmd;
     CFE_SB_MsgPtr_t  SBCmdPtr = (CFE_SB_MsgPtr_t) &SBCmd;
-    CFE_SB_MsgId_t   MsgIdReturned;
     CFE_SB_MsgId_t   MsgIdSet;
     uint32           i;
 
@@ -4589,38 +4588,25 @@ void Test_CFE_SB_SetGetMsgId(void)
     memset(SBCmdPtr, 0xff, sizeof(SBCmd));
     MsgIdSet = CFE_SB_ValueToMsgId(CFE_SB_CMD_MID);
     CFE_SB_SetMsgId(SBCmdPtr, MsgIdSet);
-    MsgIdReturned = CFE_SB_GetMsgId(SBCmdPtr);
 
-    if (!CFE_SB_MsgId_Equal(MsgIdReturned, MsgIdSet))
-    {
-        snprintf(cMsg, UT_MAX_MESSAGE_LENGTH,
-                 "CFE_SB_GetMsgId returned 0x%lx, expected 0x%lx",
-                 (unsigned long) CFE_SB_MsgIdToValue(MsgIdReturned),
-                 (unsigned long) CFE_SB_MsgIdToValue(MsgIdSet));
-        UT_Text(cMsg);
-        TestStat = CFE_FAIL;
-    }
+    ASSERT_EQ(MsgIdSet, CFE_SB_GetMsgId(SBCmdPtr));
 
     REPORT();
+
+    START();
 
     /* Test setting and getting the message ID of a message looping through
      * all values
      */
     SB_ResetUnitTest();
-    TestStat = CFE_PASS;
-
 
     /* Looping through every value from 0 to 0xffff */
-    for (i = 0; i <= 0xFFFF; i++)
+    for (i = 0; TestStat == CFE_PASS && i <= 0xFFFF; i++)
     {
         MsgIdSet = CFE_SB_ValueToMsgId(i);
         CFE_SB_SetMsgId(SBCmdPtr, MsgIdSet);
-        MsgIdReturned = CFE_SB_GetMsgId(SBCmdPtr);
-        
-        if (!CFE_SB_MsgId_Equal(MsgIdReturned, MsgIdSet))
-        {
-            break;
-        }
+
+        ASSERT_EQ(MsgIdSet, CFE_SB_GetMsgId(SBCmdPtr));
     }
 
     REPORT();
@@ -5840,7 +5826,7 @@ void Test_CFE_SB_BadPipeInfo(void)
     /* Reset the pipe ID and delete the pipe */
     CFE_SB.PipeTbl[0].PipeId = 0;
 
-    ASSERT_EQ(CFE_SB_SubscribeFull(SB_UT_FIRST_VALID_MID ,0, CFE_SB_Default_Qos,
+    ASSERT_EQ(CFE_SB_SubscribeFull(SB_UT_FIRST_VALID_MID, 0, CFE_SB_Default_Qos,
                                   CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT, 2), CFE_SB_BAD_ARGUMENT);
 
     EVTCNT(4);
