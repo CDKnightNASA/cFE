@@ -129,7 +129,7 @@ void UT_ResetTableRegistry(void);
 ** \sa #CFE_SB_SetCmdCode, #CFE_TBL_TaskPipe
 **
 ******************************************************************************/
-void Test_CFE_TBL_TaskInit(void);
+void Test_TBL_TaskInit(void);
 
 /*****************************************************************************/
 /**
@@ -147,7 +147,7 @@ void Test_CFE_TBL_TaskInit(void);
 ** \sa #UT_Text, #UT_InitData, #CFE_TBL_InitData, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_InitData(void);
+void Test_TBL_InitData(void);
 
 /*****************************************************************************/
 /**
@@ -167,7 +167,7 @@ void Test_CFE_TBL_InitData(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_SearchCmdHndlrTbl,
 **
 ******************************************************************************/
-void Test_CFE_TBL_SearchCmdHndlrTbl(void);
+void Test_TBL_SearchCmdHndlrTbl(void);
 
 /*****************************************************************************/
 /**
@@ -187,7 +187,7 @@ void Test_CFE_TBL_SearchCmdHndlrTbl(void);
 ** \sa #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_DeleteCDSCmd(void);
+void Test_TBL_DeleteCDSCmd(void);
 
 /*****************************************************************************/
 /**
@@ -206,7 +206,7 @@ void Test_CFE_TBL_DeleteCDSCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_SendRegistryCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_TlmRegCmd(void);
+void Test_TBL_TlmRegCmd(void);
 
 /*****************************************************************************/
 /**
@@ -225,7 +225,7 @@ void Test_CFE_TBL_TlmRegCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_AbortLoadCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_AbortLoadCmd(void);
+void Test_TBL_AbortLoadCmd(void);
 
 /*****************************************************************************/
 /**
@@ -243,7 +243,7 @@ void Test_CFE_TBL_AbortLoadCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_ActivateCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_ActivateCmd(void);
+void Test_TBL_ActivateCmd(void);
 
 /*****************************************************************************/
 /**
@@ -262,7 +262,7 @@ void Test_CFE_TBL_ActivateCmd(void);
 ** \sa #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_DumpToFile(void);
+void Test_TBL_DumpToFile(void);
 
 /*****************************************************************************/
 /**
@@ -281,7 +281,7 @@ void Test_CFE_TBL_DumpToFile(void);
 ** \sa #UT_Text, #UT_Report, #CFE_TBL_ResetCountersCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_ResetCmd(void);
+void Test_TBL_ResetCmd(void);
 
 /*****************************************************************************/
 /**
@@ -299,7 +299,7 @@ void Test_CFE_TBL_ResetCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_ValidateCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_ValidateCmd(void);
+void Test_TBL_ValidateCmd(void);
 
 /*****************************************************************************/
 /**
@@ -318,7 +318,7 @@ void Test_CFE_TBL_ValidateCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_NoopCmd
 **
 ******************************************************************************/
-void Test_CFE_TBL_NoopCmd(void);
+void Test_TBL_NoopCmd(void);
 
 /*****************************************************************************/
 /**
@@ -338,7 +338,7 @@ void Test_CFE_TBL_NoopCmd(void);
 ** \sa #UT_Text, #UT_InitData, #CFE_TBL_GetTblRegData, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetTblRegData(void);
+void Test_TBL_GetTblRegData(void);
 
 /*****************************************************************************/
 /**
@@ -358,7 +358,7 @@ void Test_CFE_TBL_GetTblRegData(void);
 ** \sa #UT_Text, #UT_InitData, #CFE_TBL_GetHkData, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetHkData(void);
+void Test_TBL_GetHkData(void);
 
 /*****************************************************************************/
 /**
@@ -379,7 +379,7 @@ void Test_CFE_TBL_GetHkData(void);
 ** \sa #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_DumpRegCmd(void);
+void Test_TBL_DumpRegCmd(void);
 
 /*****************************************************************************/
 /**
@@ -398,7 +398,7 @@ void Test_CFE_TBL_DumpRegCmd(void);
 ** \sa #UT_Text, #UT_InitData, #UT_Report, #CFE_TBL_DumpCmd, #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_DumpCmd(void);
+void Test_TBL_DumpCmd(void);
 
 /*****************************************************************************/
 /**
@@ -420,7 +420,7 @@ void Test_CFE_TBL_DumpCmd(void);
 ** \sa #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_LoadCmd(void);
+void Test_TBL_LoadCmd(void);
 
 /*****************************************************************************/
 /**
@@ -440,7 +440,7 @@ void Test_CFE_TBL_LoadCmd(void);
 ** \sa #CFE_TBL_HousekeepingCmd, #UT_SetOSFail
 **
 ******************************************************************************/
-void Test_CFE_TBL_HousekeepingCmd(void);
+void Test_TBL_HousekeepingCmd(void);
 
 /*****************************************************************************/
 /**
@@ -458,7 +458,7 @@ void Test_CFE_TBL_HousekeepingCmd(void);
 ** \sa #UT_SetAppID, #UT_ResetCDS, #CFE_TBL_EarlyInit
 **
 ******************************************************************************/
-void Test_CFE_TBL_ApiInit(void);
+void Test_TBL_ApiInit(void);
 
 /*****************************************************************************/
 /**
@@ -480,7 +480,7 @@ void Test_CFE_TBL_ApiInit(void);
 ** \sa #UT_ResetTableRegistry
 **
 ******************************************************************************/
-void Test_CFE_TBL_Register(void);
+void Test_TBL_Register(void);
 
 /*****************************************************************************/
 /**
@@ -503,7 +503,7 @@ void Test_CFE_TBL_Register(void);
 ** \sa #UT_SetReadBuffer, #UT_SetReadHeader
 **
 ******************************************************************************/
-void Test_CFE_TBL_Share(void);
+void Test_TBL_Share(void);
 
 /*****************************************************************************/
 /**
@@ -524,7 +524,7 @@ void Test_CFE_TBL_Share(void);
 ** \sa #UT_EventIsInHistory, #UT_GetNumEventsSent, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_Unregister(void);
+void Test_TBL_Unregister(void);
 
 /*****************************************************************************/
 /**
@@ -547,7 +547,7 @@ void Test_CFE_TBL_Unregister(void);
 ** \sa #UT_Report, #CFE_TBL_NotifyByMessage
 **
 ******************************************************************************/
-void Test_CFE_TBL_NotifyByMessage(void);
+void Test_TBL_NotifyByMessage(void);
 
 /*****************************************************************************/
 /**
@@ -571,7 +571,7 @@ void Test_CFE_TBL_NotifyByMessage(void);
 ** \sa #CFE_TBL_GetAddress, #CFE_TBL_ReleaseAddress
 **
 ******************************************************************************/
-void Test_CFE_TBL_Load(void);
+void Test_TBL_Load(void);
 
 /*****************************************************************************/
 /**
@@ -592,7 +592,7 @@ void Test_CFE_TBL_Load(void);
 ** \sa #UT_GetNumEventsSent, #UT_Report, #UT_SetRtnCode, #CFE_TBL_Unregister
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetAddress(void);
+void Test_TBL_GetAddress(void);
 
 /*****************************************************************************/
 /**
@@ -614,7 +614,7 @@ void Test_CFE_TBL_GetAddress(void);
 ** \sa #UT_Report, #CFE_TBL_ReleaseAddress
 **
 ******************************************************************************/
-void Test_CFE_TBL_ReleaseAddress(void);
+void Test_TBL_ReleaseAddress(void);
 
 /*****************************************************************************/
 /**
@@ -636,7 +636,7 @@ void Test_CFE_TBL_ReleaseAddress(void);
 ** #CFE_TBL_GetAddresses
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetAddresses(void);
+void Test_TBL_GetAddresses(void);
 
 /*****************************************************************************/
 /**
@@ -657,7 +657,7 @@ void Test_CFE_TBL_GetAddresses(void);
 ** \sa #UT_GetNumEventsSent, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_ReleaseAddresses(void);
+void Test_TBL_ReleaseAddresses(void);
 
 /*****************************************************************************/
 /**
@@ -677,7 +677,7 @@ void Test_CFE_TBL_ReleaseAddresses(void);
 ** \sa #UT_GetNumEventsSent, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_Validate(void);
+void Test_TBL_Validate(void);
 
 /*****************************************************************************/
 /**
@@ -699,7 +699,7 @@ void Test_CFE_TBL_Validate(void);
 ** \sa #UT_SetAppID, #CFE_TBL_Load, #UT_EventIsInHistory, #UT_SetRtnCode,
 **
 ******************************************************************************/
-void Test_CFE_TBL_Manage(void);
+void Test_TBL_Manage(void);
 
 /*****************************************************************************/
 /**
@@ -720,7 +720,7 @@ void Test_CFE_TBL_Manage(void);
 ** \sa #UT_EventIsInHistory, #UT_GetNumEventsSent, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_Update(void);
+void Test_TBL_Update(void);
 
 /*****************************************************************************/
 /**
@@ -741,7 +741,7 @@ void Test_CFE_TBL_Update(void);
 ** \sa #UT_GetNumEventsSent, #UT_Report
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetStatus(void);
+void Test_TBL_GetStatus(void);
 
 /*****************************************************************************/
 /**
@@ -761,7 +761,7 @@ void Test_CFE_TBL_GetStatus(void);
 ** \sa #UT_Text, #
 **
 ******************************************************************************/
-void Test_CFE_TBL_GetInfo(void);
+void Test_TBL_GetInfo(void);
 
 /*****************************************************************************/
 /**
@@ -785,7 +785,7 @@ void Test_CFE_TBL_GetInfo(void);
 ** \sa #CFE_TBL_GetAddress, #CFE_TBL_Modified, #CFE_TBL_GetInfo, #UT_SetRtnCode
 **
 ******************************************************************************/
-void Test_CFE_TBL_TblMod(void);
+void Test_TBL_TblMod(void);
 
 /*****************************************************************************/
 /**
@@ -809,7 +809,7 @@ void Test_CFE_TBL_TblMod(void);
 ** \sa #CFE_TBL_Share, #UT_SetPutPoolFail, #CFE_TBL_CleanUpApp
 **
 ******************************************************************************/
-void Test_CFE_TBL_Internal(void);
+void Test_TBL_Internal(void);
 
 /*****************************************************************************/
 /**
@@ -828,6 +828,6 @@ void Test_CFE_TBL_Internal(void);
 **        This function does not return a value.
 **
 ******************************************************************************/
-int32 Test_CFE_TBL_ValidationFunc(void *TblPtr);
+int32 Test_TBL_ValidationFunc(void *TblPtr);
 
 #endif /* _tbl_ut_h_ */
