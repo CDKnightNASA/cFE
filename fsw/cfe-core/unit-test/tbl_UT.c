@@ -492,8 +492,8 @@ void Test_TBL_InitData(void)
     /* This function has only one possible path with no return code */
     UT_InitData();
     CFE_TBL_InitData();
-    ASSERT(CFE_SB_MsgId_Equal(CFE_SB_GetMsgId((CFE_SB_Msg_t*)&CFE_TBL_TaskData.HkPacket), CFE_SB_ValueToMsgId(CFE_TBL_HK_TLM_MID)));
-    ASSERT(CFE_SB_MsgId_Equal(CFE_SB_GetMsgId((CFE_SB_Msg_t*)&CFE_TBL_TaskData.TblRegPacket), CFE_SB_ValueToMsgId(CFE_TBL_REG_TLM_MID)));
+    ASSERT_TRUE(CFE_SB_MsgId_Equal(CFE_SB_GetMsgId((CFE_SB_Msg_t*)&CFE_TBL_TaskData.HkPacket), CFE_SB_ValueToMsgId(CFE_TBL_HK_TLM_MID)));
+    ASSERT_TRUE(CFE_SB_MsgId_Equal(CFE_SB_GetMsgId((CFE_SB_Msg_t*)&CFE_TBL_TaskData.TblRegPacket), CFE_SB_ValueToMsgId(CFE_TBL_REG_TLM_MID)));
     ASSERT_EQ(UT_GetStubCount(UT_KEY(CFE_SB_InitMsg)), 2);
 
     REPORT();
@@ -569,27 +569,53 @@ void Test_TBL_SearchCmdHndlrTbl_MIDErr(void)
     REPORT();
 }
 
+void Test_TBL_DeleteCDSCmd_FindSuccess(void);
+void Test_TBL_DeleteCDSCmd_FindErr(void);
+void Test_TBL_DeleteCDSCmd_CDSNotTblErr(void);
+void Test_TBL_DeleteCDSCmd_OwnActiveErr(void);
+void Test_TBL_DeleteCDSCmd_TblIncErr(void);
+void Test_TBL_DeleteCDSCmd_DelErr(void);
+void Test_TBL_DeleteCDSCmd_RemoveSuccess(void);
+
 /*
 ** Test the delete critical table's CDS command message
 */
 void Test_TBL_DeleteCDSCmd(void)
 {
-    int                 j, k;
+    STARTBLOCK();
+
+    Test_TBL_DeleteCDSCmd_FindSuccess();
+    Test_TBL_DeleteCDSCmd_FindErr();
+    Test_TBL_DeleteCDSCmd_CDSNotTblErr();
+    Test_TBL_DeleteCDSCmd_OwnActiveErr();
+    Test_TBL_DeleteCDSCmd_TblIncErr();
+    Test_TBL_DeleteCDSCmd_DelErr();
+    Test_TBL_DeleteCDSCmd_RemoveSuccess();
+
+    ENDBLOCK();
+}
+
+void Test_TBL_DeleteCDSCmd_FindSuccess(void)
+{
     CFE_TBL_DeleteCDS_t DelCDSCmd;
 
-#ifdef UT_VERBOSE
-    UT_Text("Begin Test Delete CDS Command\n");
-#endif
+    START();
 
     /* Test successfully finding the table name in the table registry */
     UT_InitData();
-    strncpy(DelCDSCmd.Payload.TableName, "0",
-            sizeof(DelCDSCmd.Payload.TableName));
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                                       CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Table name found in table registry");
+    strncpy(DelCDSCmd.Payload.TableName, "0", sizeof(DelCDSCmd.Payload.TableName));
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_FindErr(void)
+{
+    int                 j, k;
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test failure to find table in the critical table registry */
     UT_InitData();
@@ -603,11 +629,17 @@ void Test_TBL_DeleteCDSCmd(void)
 
     strncpy(DelCDSCmd.Payload.TableName, "-1", 
         sizeof(DelCDSCmd.Payload.TableName));
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                                       CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Table not found in critical table registry");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_CDSNotTblErr(void)
+{
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test finding the table in the critical table registry, but CDS is not
      * tagged as a table
@@ -616,62 +648,94 @@ void Test_TBL_DeleteCDSCmd(void)
     snprintf(DelCDSCmd.Payload.TableName, sizeof(DelCDSCmd.Payload.TableName), "%d",
              CFE_PLATFORM_TBL_MAX_CRITICAL_TABLES + CFE_PLATFORM_TBL_MAX_NUM_TABLES - 1);
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_DeleteCDS), 1, CFE_ES_CDS_WRONG_TYPE_ERR);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                                       CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Table is in critical table registry but CDS is not tagged "
-                 "as a table");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_OwnActiveErr(void)
+{
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test deletion when CDS owning application is still active */
     UT_InitData();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_DeleteCDS), 1, CFE_ES_CDS_OWNER_ACTIVE_ERR);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "CDS owning application is still active");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_TblIncErr(void)
+{
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test deletion where the table cannot be located in the CDS registry */
     UT_InitData();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_DeleteCDS), 1, CFE_ES_CDS_NOT_FOUND_ERR);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Unable to locate table in CDS registry");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_DelErr(void)
+{
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test deletion error while deleting table from the CDS */
     UT_InitData();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_DeleteCDS), 1, CFE_SUCCESS - 1);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Error while deleting table from CDS");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_DeleteCDSCmd_RemoveSuccess(void)
+{
+    CFE_TBL_DeleteCDS_t DelCDSCmd;
+
+    START();
 
     /* Test successful removal of the table from the CDS */
     UT_InitData();
     UT_SetDeferredRetcode(UT_KEY(CFE_ES_DeleteCDS), 1, CFE_SUCCESS);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_DeleteCDSCmd(&DelCDSCmd) ==
-                CFE_TBL_INC_CMD_CTR,
-              "CFE_TBL_DeleteCDSCmd",
-              "Successfully removed table from CDS");
+
+    ASSERT_EQ(CFE_TBL_DeleteCDSCmd(&DelCDSCmd), CFE_TBL_INC_CMD_CTR);
+
+    REPORT();
 }
+
+void Test_TBL_TlmRegCmd_Success(void);
+void Test_TBL_TlmRegCmd_TblNumErr(void);
 
 /*
 ** Test the processing telemetry table registry command message function
 */
 void Test_TBL_TlmRegCmd(void)
 {
+    STARTBLOCK();
+
+    Test_TBL_TlmRegCmd_Success();
+    Test_TBL_TlmRegCmd_TblNumErr();
+
+    ENDBLOCK();
+}
+
+void Test_TBL_TlmRegCmd_Success(void)
+{
     CFE_TBL_SendRegistry_t TlmRegCmd;
 
-#ifdef UT_VERBOSE
-    UT_Text("Begin Test Telemetry Registry Command\n");
-#endif
+    START();
 
-    /* Test when table name does exist */
     UT_InitData();
 
     /* Registry[0].Name used because it is confirmed to be a registered
@@ -679,35 +743,56 @@ void Test_TBL_TlmRegCmd(void)
      */
     strncpy((char *)TlmRegCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
             sizeof(TlmRegCmd.Payload.TableName));
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_SendRegistryCmd(&TlmRegCmd) ==
-                CFE_TBL_INC_CMD_CTR,
-              "CFE_TBL_SendRegistryCmd",
-              "Table registry entry for telemetry does exist");
 
-    /* Test when table name does not exist */
+    ASSERT_EQ(CFE_TBL_SendRegistryCmd(&TlmRegCmd), CFE_TBL_INC_CMD_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_TlmRegCmd_TblNumErr(void)
+{
+    CFE_TBL_SendRegistry_t TlmRegCmd;
+
+    START();
+
+    /* Test when table id is > max # */
     UT_InitData();
 
     snprintf(TlmRegCmd.Payload.TableName, sizeof(TlmRegCmd.Payload.TableName),
              "%d", CFE_PLATFORM_TBL_MAX_NUM_TABLES + 1);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_SendRegistryCmd(&TlmRegCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_SendRegistryCmd",
-              "Table registry entry for telemetry doesn't exist");
+
+    ASSERT_EQ(CFE_TBL_SendRegistryCmd(&TlmRegCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
 }
+
+void Test_TBL_AbortLoadCmd_NameErr(void);
+void Test_TBL_AbortLoadCmd_ProgErr(void);
+void Test_TBL_AbortLoadCmd_DumpOnlyErr(void);
+void Test_TBL_AbortLoadCmd_NotFndErr(void);
+void Test_TBL_AbortLoadCmd_DblBufErr(void);
 
 /*
 ** Test the processing abort load command message function
 */
 void Test_TBL_AbortLoadCmd(void)
 {
-    int load = (int) CFE_TBL_TaskData.Registry[0].LoadInProgress;
+    STARTBLOCK();
+
+    Test_TBL_AbortLoadCmd_NameErr();
+    Test_TBL_AbortLoadCmd_ProgErr();
+    Test_TBL_AbortLoadCmd_DumpOnlyErr();
+    Test_TBL_AbortLoadCmd_NotFndErr();
+    Test_TBL_AbortLoadCmd_DblBufErr();
+
+    ENDBLOCK();
+}
+
+void Test_TBL_AbortLoadCmd_NameErr(void)
+{
     CFE_TBL_AbortLoad_t  AbortLdCmd;
 
-#ifdef UT_VERBOSE
-    UT_Text("Begin Test Abort Load Command\n");
-#endif
+    START();
 
     /* Test when table name does exist and a table load is in progress */
     UT_InitData();
@@ -718,20 +803,32 @@ void Test_TBL_AbortLoadCmd(void)
     strncpy((char *)AbortLdCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
             sizeof(AbortLdCmd.Payload.TableName));
     CFE_TBL_TaskData.Registry[0].LoadInProgress = 1;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_AbortLoadCmd(&AbortLdCmd) ==
-                CFE_TBL_INC_CMD_CTR,
-              "CFE_TBL_AbortLoadCmd",
-              "Table registry entry exists & load in progress");
+
+    ASSERT_EQ(CFE_TBL_AbortLoadCmd(&AbortLdCmd), CFE_TBL_INC_CMD_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_AbortLoadCmd_ProgErr(void)
+{
+    CFE_TBL_AbortLoad_t  AbortLdCmd;
+
+    START();
 
     /* Test when table name does exist but no table load is in progress */
     UT_InitData();
     CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_AbortLoadCmd(&AbortLdCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_AbortLoadCmd",
-              "Table registry entry exists but no load in progress");
+
+    ASSERT_EQ(CFE_TBL_AbortLoadCmd(&AbortLdCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_AbortLoadCmd_DumpOnlyErr(void)
+{
+    CFE_TBL_AbortLoad_t  AbortLdCmd;
+
+    START();
 
     /* Test when table name does exist, a table load is in progress, and the
      * table is dump only
@@ -739,49 +836,78 @@ void Test_TBL_AbortLoadCmd(void)
     UT_InitData();
     CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS + 1;
     CFE_TBL_TaskData.Registry[0].DumpOnly = true;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_AbortLoadCmd(&AbortLdCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_AbortLoadCmd",
-              "Table registry entry exists, load in progress, dump only");
+
+    ASSERT_EQ(CFE_TBL_AbortLoadCmd(&AbortLdCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_AbortLoadCmd_NotFndErr(void)
+{
+    CFE_TBL_AbortLoad_t  AbortLdCmd;
+
+    START();
 
     /* Test when table name not found in the registry */
     UT_InitData();
     snprintf(AbortLdCmd.Payload.TableName, sizeof(AbortLdCmd.Payload.TableName),
              "%d", CFE_PLATFORM_TBL_MAX_NUM_TABLES + 1);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_AbortLoadCmd(&AbortLdCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_AbortLoadCmd",
-              "Table registry entry doesn't exist");
+
+    ASSERT_EQ(CFE_TBL_AbortLoadCmd(&AbortLdCmd), CFE_TBL_INC_ERR_CTR);
+
+    REPORT();
+}
+
+void Test_TBL_AbortLoadCmd_DblBufErr(void)
+{
+    int load = (int) CFE_TBL_TaskData.Registry[0].LoadInProgress;
+
+    START();
 
     /* Test when table is double buffered */
     UT_InitData();
     CFE_TBL_TaskData.Registry[0].DoubleBuffered = true;
     CFE_TBL_TaskData.LoadBuffs[0].Taken = true;
     CFE_TBL_AbortLoad(&CFE_TBL_TaskData.Registry[0]);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_TaskData.LoadBuffs[0].Taken == true,
-              "CFE_TBL_AbortLoad",
-              "Table is double buffered");
+
+    ASSERT_TRUE(CFE_TBL_TaskData.LoadBuffs[0].Taken);
 
     /* Restore values for subsequent tests */
     CFE_TBL_TaskData.Registry[0].LoadInProgress = load;
     CFE_TBL_TaskData.LoadBuffs[0].Taken = false;
+
+    REPORT();
 }
+
+void Test_TBL_ActivateCmd_DumpOnlyErr(void);
+void Test_TBL_ActivateCmd_InProgressErr(void);
+void Test_TBL_ActivateCmd_ExistErr(void);
+void Test_TBL_ActivateCmd_NotificationErr(void);
+void Test_TBL_ActivateCmd_NotifSentErr(void);
+void Test_TBL_ActivateCmd_NameExistErr(void);
 
 /*
 ** Test the activate table command message function
 */
 void Test_TBL_ActivateCmd(void)
 {
-    int                   load = (int) CFE_TBL_TaskData.Registry[0].LoadInProgress;
-    uint8                 dump = CFE_TBL_TaskData.Registry[0].DumpOnly;
+    Test_TBL_ActivateCmd_DumpOnlyErr();
+    Test_TBL_ActivateCmd_InProgressErr();
+    Test_TBL_ActivateCmd_ExistErr();
+    Test_TBL_ActivateCmd_NotificationErr();
+    Test_TBL_ActivateCmd_NotifSentErr();
+    Test_TBL_ActivateCmd_NameExistErr();
+}
+
+void Test_TBL_ActivateCmd_DumpOnlyErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
     CFE_TBL_Activate_t    ActivateCmd;
 
-#ifdef UT_VERBOSE
-    UT_Text("Begin Test Activate Command\n");
-#endif
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
 
     /* Enter the if statement with a table name that is in the registry */
     strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
@@ -792,11 +918,28 @@ void Test_TBL_ActivateCmd(void)
      */
     UT_InitData();
     CFE_TBL_TaskData.Registry[0].DumpOnly = true;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                                      CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry exists, but dump-only table attempted to load");
+
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_ERR_CTR);
+
+    /* Restore original values */
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
+}
+
+void Test_TBL_ActivateCmd_InProgressErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
+    CFE_TBL_Activate_t    ActivateCmd;
+
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
+
+    /* Enter the if statement with a table name that is in the registry */
+    strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
+            sizeof(ActivateCmd.Payload.TableName));
 
     /* Test when table name exists, the table is not a dump-only, a load is in
      * progress, and the table is double-buffered
@@ -805,66 +948,138 @@ void Test_TBL_ActivateCmd(void)
     CFE_TBL_TaskData.Registry[0].DumpOnly = false;
     CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS + 1;
     CFE_TBL_TaskData.Registry[0].DoubleBuffered = true;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry exists, not a dump-only tbl, and a load in "
-                 "progress: Table is double-buffered");
 
-    /* Test when table name exists, the table is not a dump-only, a load is in
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_ERR_CTR);
+
+    /* Restore original values */
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
+}
+
+void Test_TBL_ActivateCmd_ExistErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
+    CFE_TBL_Activate_t    ActivateCmd;
+
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
+
+    /* Enter the if statement with a table name that is in the registry */
+    strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
+            sizeof(ActivateCmd.Payload.TableName));
+
+    /* Test when table name exists, the table is not dump-only, a load is in
      * progress, the table isn't double-buffered, and ValidationStatus = true
      */
     UT_InitData();
+    CFE_TBL_TaskData.Registry[0].DumpOnly = false;
+    CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS + 1;
     CFE_TBL_TaskData.Registry[0].DoubleBuffered = false;
     CFE_TBL_TaskData.LoadBuffs[CFE_TBL_TaskData.Registry[0].LoadInProgress].Validated = true;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                CFE_TBL_INC_CMD_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry exists, not a dump-only tbl, and a load in "
-                "progress: Table isn't double-buffered");
+
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_CMD_CTR);
+
+    /* Restore original values */
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
+}
+
+void Test_TBL_ActivateCmd_NotificationErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
+    CFE_TBL_Activate_t    ActivateCmd;
+
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
+
+    /* Enter the if statement with a table name that is in the registry */
+    strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
+            sizeof(ActivateCmd.Payload.TableName));
 
     /* Test when table name exists, the table is not a dump-only, no load is in
      * progress, and no notification message should be sent
      */
     UT_InitData();
+    CFE_TBL_TaskData.Registry[0].DumpOnly = false;
+    CFE_TBL_TaskData.Registry[0].DoubleBuffered = false;
     CFE_TBL_TaskData.Registry[0].NotifyByMsg = false;
     CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry exists, not a dump-only tbl, no load in "
-                "progress, no notification message");
+
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_ERR_CTR);
+
+    /* Restore original values */
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
+}
+
+void Test_TBL_ActivateCmd_NotifSentErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
+    CFE_TBL_Activate_t    ActivateCmd;
+
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
+
+    /* Enter the if statement with a table name that is in the registry */
+    strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
+            sizeof(ActivateCmd.Payload.TableName));
 
     /* Test when table name exists, the table is not a dump-only, no load in in
      * progress, and a notification message should be sent
      */
     UT_InitData();
     UT_SetDeferredRetcode(UT_KEY(CFE_SB_SendMsg), 1, CFE_SB_INTERNAL_ERR);
+    CFE_TBL_TaskData.Registry[0].DumpOnly = false;
+    CFE_TBL_TaskData.Registry[0].DoubleBuffered = false;
     CFE_TBL_TaskData.Registry[0].NotifyByMsg = true;
     CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS + 1;
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                CFE_TBL_INC_CMD_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry exists, not a dump-only tbl, no load in "
-                "progress, send notification message");
+
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_CMD_CTR);
+
+    /* Restore original values */
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
+}
+
+void Test_TBL_ActivateCmd_NameExistErr(void)
+{
+    CFE_TBL_RegistryRec_t rec;
+    CFE_TBL_Activate_t    ActivateCmd;
+
+    START();
+
+    /* save current values */
+    memcpy(&rec, &CFE_TBL_TaskData.Registry[0], sizeof(rec));
+
+    /* Enter the if statement with a table name that is in the registry */
+    strncpy(ActivateCmd.Payload.TableName, CFE_TBL_TaskData.Registry[0].Name,
+            sizeof(ActivateCmd.Payload.TableName));
 
     /* Test when the table name doesn't exist */
     UT_InitData();
+    CFE_TBL_TaskData.Registry[0].DumpOnly = false;
+    CFE_TBL_TaskData.Registry[0].DoubleBuffered = false;
+    CFE_TBL_TaskData.Registry[0].NotifyByMsg = true;
+    CFE_TBL_TaskData.Registry[0].LoadInProgress = CFE_TBL_NO_LOAD_IN_PROGRESS + 1;
     snprintf(ActivateCmd.Payload.TableName, sizeof(ActivateCmd.Payload.TableName),
              "%d", CFE_PLATFORM_TBL_MAX_NUM_TABLES + 1);
-    UT_Report(__FILE__, __LINE__,
-              CFE_TBL_ActivateCmd(&ActivateCmd) ==
-                CFE_TBL_INC_ERR_CTR,
-              "CFE_TBL_ActivateCmd",
-              "Table registry entry doesn't exist");
+
+    ASSERT_EQ(CFE_TBL_ActivateCmd(&ActivateCmd), CFE_TBL_INC_ERR_CTR);
 
     /* Restore original values */
-    CFE_TBL_TaskData.Registry[0].LoadInProgress = load;
-    CFE_TBL_TaskData.Registry[0].DumpOnly = dump;
+    memcpy(&CFE_TBL_TaskData.Registry[0], &rec, sizeof(rec));
+
+    REPORT();
 }
 
 /*
