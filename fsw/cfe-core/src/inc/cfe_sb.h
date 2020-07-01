@@ -422,6 +422,60 @@ int32  CFE_SB_SubscribeEx(CFE_SB_MsgId_t      MsgId,
 
 /*****************************************************************************/
 /**
+** \brief Subscribe to a message on the software bus, with a pre-shared key.
+**
+** \par Description
+**          This routine adds the specified pipe to the destination list associated
+**          with the specified message ID.
+**
+** \par Assumptions, External Events, and Notes:
+**          Note:   As subscriptions are received, the destinations are added to
+**          the head of a linked list. During the sending of a message, the list
+**          is traversed beginning at the head of the list. Therefore the
+**          message will first be sent to the last subscriber. If an application
+**          has timing constraints and needs to receive a message in the
+**          shortest possible time, the developer may consider holding off its
+**          subscription until other applications have subscribed to the message.
+**
+** \param[in]  MsgId        The message ID of the message to be subscribed to.
+**
+** \param[in]  PipeId       The pipe ID of the pipe the subscribed message
+**                          should be sent to.
+**
+** \param[in]  Quality      The requested Quality of Service (QoS) required of
+**                          the messages. Most callers will use #CFE_SB_Default_Qos
+**                          for this parameter.
+**
+** \param[in]  MsgLim       The maximum number of messages with this Message ID to
+**                          allow in this pipe at the same time.
+**
+** \param[in]  PSKBufPtr    A buffer containing the pre-shared key. Messages sent
+**                          to the bus with the above MsgId but without the correct
+**                          PSK will be silently dropped. If this parameter is NULL,
+**                          the subscription does not require a PSK (can be used to
+**                          remove a previously-configured PSK for this Pipe/MsgId.)
+**
+** \param[in]  PSKBufSz     The size of the PSK buffer, in bytes. If 0, this function
+**                          assumes PSKBufPtr points to a null-terminated string.
+**
+** \return Execution status, see \ref CFEReturnCodes
+** \retval #CFE_SUCCESS          \copybrief CFE_SUCCESS
+** \retval #CFE_SB_MAX_MSGS_MET  \copybrief CFE_SB_MAX_MSGS_MET
+** \retval #CFE_SB_MAX_DESTS_MET \copybrief CFE_SB_MAX_DESTS_MET
+** \retval #CFE_SB_BAD_ARGUMENT  \copybrief CFE_SB_BAD_ARGUMENT
+** \retval #CFE_SB_BUF_ALOC_ERR  \copybrief CFE_SB_BUF_ALOC_ERR
+**
+** \sa #CFE_SB_SubscribeEx, #CFE_SB_SubscribeLocal, #CFE_SB_Unsubscribe, #CFE_SB_UnsubscribeLocal
+**/
+int32  CFE_SB_SubscribePSK(CFE_SB_MsgId_t      MsgId,
+                          CFE_SB_PipeId_t     PipeId,
+                          CFE_SB_Qos_t        Quality,
+                          uint16              MsgLim,
+                          uint8               *PSKBufPtr,
+                          uint32              PSKBufSz);
+
+/*****************************************************************************/
+/**
 ** \brief Subscribe to a message on the software bus with default parameters
 **
 ** \par Description
@@ -613,6 +667,90 @@ int32  CFE_SB_PassMsg(CFE_SB_Msg_t   *MsgPtr);
 
 /*****************************************************************************/
 /**
+** \brief Send a software bus message including a pre-shared key.
+**
+** \par Description
+**          This routine sends the specified message to all subscribers.  The
+**          software bus will read the message ID from the message header to
+**          determine which pipes should receive the message and will confirm
+**          that the PSK matches that provided by the subscriber's setting.
+**
+** \par Assumptions, External Events, and Notes:
+**          - This routine will not normally wait for the receiver tasks to
+**            process the message before returning control to the caller's task.
+**          - However, if a higher priority task is pending and subscribed to
+**            this message, that task may get to run before #CFE_SB_SendMsg
+**            returns control to the caller.
+**          - This function tracks and increments the source sequence counter
+**            of a telemetry message.
+**
+** \param[in]  MsgPtr       A pointer to the message to be sent.  This must point
+**                          to the first byte of the software bus message header
+**                          (#CFE_SB_Msg_t).
+**
+** \param[in]  PSKBufPtr    A pointer to the buffer containing the pre-shared key.
+**                          This may be NULL, in which case any subscriber
+**                          to this MsgId who requires a PSK will not receive this
+**                          message.
+**
+** \param[in]  PSKBufSz     The size of the PSK buffer, in bytes. If 0, this function
+**                          assumes PSKBufPtr points to a null-terminated string.
+**
+** \return Execution status, see \ref CFEReturnCodes
+** \retval #CFE_SUCCESS         \copybrief CFE_SUCCESS
+** \retval #CFE_SB_BAD_ARGUMENT \copybrief CFE_SB_BAD_ARGUMENT
+** \retval #CFE_SB_MSG_TOO_BIG  \copybrief CFE_SB_MSG_TOO_BIG
+** \retval #CFE_SB_BUF_ALOC_ERR \copybrief CFE_SB_BUF_ALOC_ERR
+**
+** \sa #CFE_SB_SendMsgPSK, #CFE_SB_ZeroCopySend, #CFE_SB_PassMsg
+**/
+int32  CFE_SB_SendMsgPSK(CFE_SB_Msg_t   *MsgPtr, uint8 *PSKBufPtr, uint32 PSKBufSz);
+
+/*****************************************************************************/
+/**
+** \brief Passes a software bus message with a pre-shared key.
+**
+** \par Description
+**          This routine sends the specified message to all subscribers.  The
+**          software bus will read the message ID from the message header to
+**          determine which pipes should receive the message and will confirm
+**          that the PSK matches that provided by the subscriber's setting.
+**          This routine is intended to pass messages not generated by the
+**          sending application.
+**
+** \par Assumptions, External Events, and Notes:
+**          - This routine will not normally wait for the receiver tasks to
+**            process the message before returning control to the caller's task.
+**          - However, if a higher priority task is pending and subscribed to
+**            this message, that task may get to run before #CFE_SB_PassMsg
+**            returns control to the caller.
+**          - Unlike #CFE_SB_SendMsg this routine will preserve the source
+**            sequence counter in a telemetry message.
+**
+** \param[in]  MsgPtr       A pointer to the message to be sent.  This must point
+**                          to the first byte of the software bus message header
+**                          (#CFE_SB_Msg_t).
+**
+** \param[in]  PSKBufPtr    A pointer to the buffer containing the pre-shared key.
+**                          This may be NULL, in which case any subscriber
+**                          to this MsgId who requires a PSK will not receive this
+**                          message.
+**
+** \param[in]  PSKBufSz     The size of the PSK buffer, in bytes. If 0, this function
+**                          assumes PSKBufPtr points to a null-terminated string.
+**
+** \return Execution status, see \ref CFEReturnCodes
+** \retval #CFE_SUCCESS         \copybrief CFE_SUCCESS
+** \retval #CFE_SB_BAD_ARGUMENT \copybrief CFE_SB_BAD_ARGUMENT
+** \retval #CFE_SB_MSG_TOO_BIG  \copybrief CFE_SB_MSG_TOO_BIG
+** \retval #CFE_SB_BUF_ALOC_ERR \copybrief CFE_SB_BUF_ALOC_ERR
+**
+** \sa #CFE_SB_PassMsg, #CFE_SB_ZeroCopySend, #CFE_SB_SendMsg
+**/
+int32  CFE_SB_PassMsgPSK(CFE_SB_Msg_t   *MsgPtr, uint8 *PSKBufPtr, uint32 PSKBufSz);
+
+/*****************************************************************************/
+/**
 ** \brief Receive a message from a software bus pipe
 **
 ** \par Description
@@ -772,7 +910,113 @@ int32 CFE_SB_ZeroCopySend(CFE_SB_Msg_t   *MsgPtr,
 
 /*****************************************************************************/
 /**
+** \brief Send an SB message in "zero copy" mode, with a pre-shared key.
+**
+** \par Description
+**          This routine sends a message that has been created directly in an
+**          internal SB message buffer by an application (after a call to
+**          #CFE_SB_ZeroCopyGetPtr).  This interface is more complicated than
+**          the normal #CFE_SB_SendMsg interface, but it avoids an extra copy of
+**          the message from the user's memory buffer to the software bus
+**          internal buffer.  The "zero copy" interface can be used to improve
+**          performance in high-rate, high-volume software bus traffic.
+**
+** \par Assumptions, External Events, and Notes:
+**          -# The pointer returned by #CFE_SB_ZeroCopyGetPtr is only good for
+**             one call to #CFE_SB_ZeroCopySend.
+**          -# Callers must not use the same SB message buffer for multiple sends.
+**          -# Applications should be written as if #CFE_SB_ZeroCopyGetPtr is
+**             equivalent to a \c malloc() and #CFE_SB_ZeroCopySend is equivalent
+**             to a \c free().
+**          -# Applications must not de-reference the message pointer (for reading
+**             or writing) after the call to #CFE_SB_ZeroCopySend.
+**          -# This function tracks and increments the source sequence counter
+**             of a telemetry message.
+**
+** \param[in]  MsgPtr  A pointer to the SB message to be sent.
+**
+** \param[in]  BufferHandle  The handle supplied with the #CFE_SB_ZeroCopyGetPtr call.
+**
+** \param[in]  PSKBufPtr    A buffer containing the pre-shared key. Messages sent
+**                          to the bus with the above MsgId but without the correct
+**                          PSK will not be delivered. If this parameter is NULL, the
+**                          subscription does not require a PSK (can be used to
+**                          remove a previously-configured PSK for this Pipe/MsgId.)
+**
+** \param[in]  PSKBufSz     The size of the PSK buffer, in bytes. If 0, this function
+**                          assumes PSKBufPtr points to a null-terminated string.
+**
+** \return Execution status, see \ref CFEReturnCodes
+** \retval #CFE_SUCCESS           \copybrief CFE_SUCCESS
+** \retval #CFE_SB_BAD_ARGUMENT   \copybrief CFE_SB_BAD_ARGUMENT
+** \retval #CFE_SB_MSG_TOO_BIG    \copybrief CFE_SB_MSG_TOO_BIG
+** \retval #CFE_SB_BUF_ALOC_ERR   \copybrief CFE_SB_BUF_ALOC_ERR
+** \retval #CFE_SB_BUFFER_INVALID \copybrief CFE_SB_BUFFER_INVALID
+**
+** \sa #CFE_SB_SendMsg, #CFE_SB_RcvMsg, #CFE_SB_ZeroCopyReleasePtr, #CFE_SB_ZeroCopyGetPtr
+**/
+int32 CFE_SB_ZeroCopySendPSK(CFE_SB_Msg_t           *MsgPtr,
+                          CFE_SB_ZeroCopyHandle_t   BufferHandle,
+                          uint8                     *PSKBufPtr,
+                          uint32                    PSKBufSz);
+
+/*****************************************************************************/
+/**
 ** \brief Pass an SB message in "zero copy" mode.
+**
+** \par Description
+**          This routine sends a message that has been created directly in an
+**          internal SB message buffer by an application (after a call to
+**          #CFE_SB_ZeroCopyGetPtr).  This interface is more complicated than
+**          the normal #CFE_SB_SendMsg interface, but it avoids an extra copy of
+**          the message from the user's memory buffer to the software bus
+**          internal buffer.  The "zero copy" interface can be used to improve
+**          performance in high-rate, high-volume software bus traffic. This
+**          version is intended to pass messages not generated by the caller
+**          (to preserve the source sequence count).
+**
+** \par Assumptions, External Events, and Notes:
+**          -# The pointer returned by #CFE_SB_ZeroCopyGetPtr is only good for
+**             one call to #CFE_SB_ZeroCopySend or #CFE_SB_ZeroCopyPass.
+**          -# Callers must not use the same SB message buffer for multiple sends.
+**          -# Applications should be written as if #CFE_SB_ZeroCopyGetPtr is
+**             equivalent to a \c malloc() and #CFE_SB_ZeroCopyPass is equivalent
+**             to a \c free().
+**          -# Applications must not de-reference the message pointer (for reading
+**             or writing) after the call to #CFE_SB_ZeroCopyPass.
+**          -# Unlike #CFE_SB_ZeroCopySend this routine will preserve the source
+**             sequence counter in a telemetry message.
+**
+** \param[in]  MsgPtr  A pointer to the SB message to be sent.
+**
+** \param[in]  BufferHandle  The handle supplied with the #CFE_SB_ZeroCopyGetPtr call.
+**
+** \param[in]  PSKBufPtr    A buffer containing the pre-shared key. Messages sent
+**                          to the bus with the above MsgId but without the correct
+**                          PSK will not be delivered. If this parameter is NULL, the
+**                          subscription does not require a PSK (can be used to
+**                          remove a previously-configured PSK for this Pipe/MsgId.)
+**
+** \param[in]  PSKBufSz     The size of the PSK buffer, in bytes. If 0, this function
+**                          assumes PSKBufPtr points to a null-terminated string.
+**
+** \return Execution status, see \ref CFEReturnCodes
+** \retval #CFE_SUCCESS           \copybrief CFE_SUCCESS
+** \retval #CFE_SB_BAD_ARGUMENT   \copybrief CFE_SB_BAD_ARGUMENT
+** \retval #CFE_SB_MSG_TOO_BIG    \copybrief CFE_SB_MSG_TOO_BIG
+** \retval #CFE_SB_BUF_ALOC_ERR   \copybrief CFE_SB_BUF_ALOC_ERR
+** \retval #CFE_SB_BUFFER_INVALID \copybrief CFE_SB_BUFFER_INVALID
+**
+** \sa #CFE_SB_PassMsg, #CFE_SB_ZeroCopySend, #CFE_SB_ZeroCopyReleasePtr, #CFE_SB_ZeroCopyGetPtr
+**/
+int32 CFE_SB_ZeroCopyPassPSK(CFE_SB_Msg_t           *MsgPtr,
+                          CFE_SB_ZeroCopyHandle_t   BufferHandle,
+                          uint8                     *PSKBufPtr,
+                          uint32                    PSKBufSz);
+
+/*****************************************************************************/
+/**
+** \brief Pass an SB message in "zero copy" mode with a pre-shared key.
 **
 ** \par Description
 **          This routine sends a message that has been created directly in an

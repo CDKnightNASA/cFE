@@ -194,7 +194,8 @@ typedef struct {
      uint16          BuffCount;
      uint16          DestCnt;
      uint8           Scope;
-     uint8           Spare[3];
+     uint8           PSKSalt[1]; /* 0 == no PSK, !0 == PSK salted with this */
+     uint8           PSKHash[2];
      void            *Prev;
      void            *Next;
 } CFE_SB_DestinationD_t;
@@ -372,14 +373,17 @@ int32 CFE_SB_SubscribeFull(CFE_SB_MsgId_t   MsgId,
                            CFE_SB_PipeId_t  PipeId,
                            CFE_SB_Qos_t     Quality,
                            uint16           MsgLim,
-                           uint8            Scope);
+                           uint8            Scope,
+                           uint8            *PSKBufPtr,
+                           uint32           PSKBufSz);
 
 int32 CFE_SB_UnsubscribeWithAppId(CFE_SB_MsgId_t MsgId, CFE_SB_PipeId_t PipeId,
                                    uint32 AppId);
 
 int32 CFE_SB_UnsubscribeFull(CFE_SB_MsgId_t MsgId, CFE_SB_PipeId_t PipeId,
                               uint8 Scope, uint32 AppId);
-int32  CFE_SB_SendMsgFull(CFE_SB_Msg_t   *MsgPtr, uint32 TlmCntIncrements, uint32 CopyMode);
+int32  CFE_SB_SendMsgFull(CFE_SB_Msg_t   *MsgPtr, uint32 TlmCntIncrements, uint32 CopyMode,
+                            uint8 *PSKBufPtr, uint32 PSKBufSz);
 int32 CFE_SB_SendRtgInfo(const char *Filename);
 int32 CFE_SB_SendPipeInfo(const char *Filename);
 int32 CFE_SB_SendMapInfo(const char *Filename);

@@ -646,7 +646,7 @@ int32  CFE_SB_SubscribeEx(CFE_SB_MsgId_t   MsgId,
                           CFE_SB_Qos_t     Quality,
                           uint16           MsgLim)
 {
-    return CFE_SB_SubscribeFull(MsgId,PipeId,Quality,MsgLim,(uint8)CFE_SB_GLOBAL);
+    return CFE_SB_SubscribeFull(MsgId,PipeId,Quality,MsgLim,(uint8)CFE_SB_GLOBAL,NULL,0);
 
 }/* end CFE_SB_SubscribeEx */
 
@@ -660,8 +660,7 @@ int32 CFE_SB_SubscribeLocal(CFE_SB_MsgId_t   MsgId,
                             CFE_SB_PipeId_t  PipeId,
                             uint16           MsgLim)
 {
-    return CFE_SB_SubscribeFull(MsgId,PipeId,CFE_SB_Default_Qos,MsgLim,
-                                (uint8)CFE_SB_LOCAL);
+    return CFE_SB_SubscribeFull(MsgId,PipeId,CFE_SB_Default_Qos,MsgLim,(uint8)CFE_SB_LOCAL,NULL,0);
 
 }/* end CFE_SB_SubscribeLocal */
 
@@ -673,10 +672,84 @@ int32 CFE_SB_Subscribe(CFE_SB_MsgId_t   MsgId,
 {
     return CFE_SB_SubscribeFull(MsgId,PipeId,CFE_SB_Default_Qos,
                                (uint16)CFE_PLATFORM_SB_DEFAULT_MSG_LIMIT,
-                               (uint8)CFE_SB_GLOBAL);
+                               (uint8)CFE_SB_GLOBAL,NULL,0);
 
 }/* end CFE_SB_Subscribe */
 
+/*
+ * Function: CFE_SB_SetPSK - Internal function to set the private key hash.
+ */
+void CFE_SB_SetPSK(uint8 *SaltBufPtr, uint32 SaltBufSz,
+    uint8 *PSKHashPtr, uint32 PSKHashSz,
+    uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    int i = 0;
+    static uint8 Salt = 100;
+
+    memset(SaltBufPtr, 0, SaltBufSz);
+    memset(PSKHashPtr, 0, PSKHashSz);
+
+    if (PSKBufPtr == NULL)
+    {
+        return;
+    }/* end if */
+
+    for(i = 0; i < SaltBufSz; i++)
+    {
+        SaltBufPtr[i] = Salt;
+        Salt += 13;
+        if (Salt == 0)
+        {
+            Salt += 13;
+        }/* end if */
+    }/* end for */
+
+    for (i = 0; i < PSKBufSz; i++)
+    {
+        PSKHashPtr[i % PSKHashSz] += SaltBufPtr[i % SaltBufSz] + PSKBufPtr[i];
+    }/* end for */
+}/* end CFE_SB_SetPSK() */
+
+/*
+ * Function: CFE_SB_ValidatePSK - Internal function to check the private key hash.
+ */
+bool CFE_SB_ValidatePSK(uint8 *SaltBufPtr, uint32 SaltBufSz,
+    uint8 *PSKHashPtr, uint32 PSKHashSz,
+    uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    uint8 ValHash[PSKHashSz];
+
+    int i = 0;
+
+    if (PSKBufPtr == NULL)
+    {
+        if (SaltBufPtr[0] == 0)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }/* end if */
+    }/* end if */
+
+    memset(ValHash, 0, PSKHashSz);
+
+    for (i = 0; i < PSKBufSz; i++)
+    {
+        ValHash[i % PSKHashSz] += SaltBufPtr[i % SaltBufSz] + PSKBufPtr[i];
+    }/* end for */
+
+    for (i = 0; i < PSKHashSz; i++)
+    {
+        if (ValHash[i] != PSKHashPtr[i])
+        {
+            return false;
+        }/* end if */
+    }/* end for */
+
+    return true;
+}/* end CFE_SB_ValidatePSK() */
 
 /******************************************************************************
 ** Name:    CFE_SB_SubscribeFull
@@ -711,7 +784,9 @@ int32  CFE_SB_SubscribeFull(CFE_SB_MsgId_t   MsgId,
                             CFE_SB_PipeId_t  PipeId,
                             CFE_SB_Qos_t     Quality,
                             uint16           MsgLim,
-                            uint8            Scope)
+                            uint8            Scope,
+                            uint8            *PSKBufPtr,
+                            uint32           PSKBufSz)
 {
     CFE_SB_MsgRouteIdx_t RouteIdx;
     CFE_SB_RouteEntry_t* RoutePtr;
@@ -864,6 +939,10 @@ int32  CFE_SB_SubscribeFull(CFE_SB_MsgId_t   MsgId,
     DestBlkPtr -> Scope = Scope;
     DestBlkPtr -> Prev = NULL;
     DestBlkPtr -> Next = NULL;
+
+    CFE_SB_SetPSK(DestBlkPtr->PSKSalt, sizeof(DestBlkPtr->PSKSalt),
+        DestBlkPtr->PSKHash, sizeof(DestBlkPtr->PSKHash),
+        PSKBufPtr, PSKBufSz);
 
     /* add destination block to head of list */
     CFE_SB_AddDest(RoutePtr, DestBlkPtr);
@@ -1120,7 +1199,7 @@ int32  CFE_SB_SendMsg(CFE_SB_Msg_t    *MsgPtr)
 {
     int32   Status = 0;
 
-    Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ONECOPY);
+    Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ONECOPY,NULL,0);
 
     return Status;
 
@@ -1135,10 +1214,39 @@ int32  CFE_SB_PassMsg(CFE_SB_Msg_t    *MsgPtr)
 {
     int32   Status = 0;
 
-    Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ONECOPY);
+    Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ONECOPY,NULL,0);
 
     return Status;
 
+}/* end CFE_SB_PassMsg */
+
+
+
+/*
+ * Function: CFE_SB_SendMsgPSK - See API and header file for details
+ */
+int32  CFE_SB_SendMsgPSK(CFE_SB_Msg_t    *MsgPtr, uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    int32   Status = 0;
+
+    Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ONECOPY,PSKBufPtr,PSKBufSz);
+
+    return Status;
+
+}/* end CFE_SB_SendMsgPSK */
+
+
+
+/*
+ * Function: CFE_SB_PassMsgPSK - See API and header file for details
+ */
+int32  CFE_SB_PassMsgPSK(CFE_SB_Msg_t    *MsgPtr, uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    int32   Status = 0;
+
+    return CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ONECOPY,PSKBufPtr,PSKBufSz);
+
+    return Status;
 }/* end CFE_SB_PassMsg */
 
 
@@ -1160,6 +1268,8 @@ int32  CFE_SB_PassMsg(CFE_SB_Msg_t    *MsgPtr)
 **          MsgPtr
 **          TlmCntIncrements
 **          CopyMode
+**          PSKBufPtr
+**          PSKBufSz
 **
 ** Output Arguments:
 **          None
@@ -1170,7 +1280,9 @@ int32  CFE_SB_PassMsg(CFE_SB_Msg_t    *MsgPtr)
 ******************************************************************************/
 int32  CFE_SB_SendMsgFull(CFE_SB_Msg_t    *MsgPtr,
                           uint32           TlmCntIncrements,
-                          uint32           CopyMode)
+                          uint32           CopyMode,
+                          uint8           *PSKBufPtr,
+                          uint32           PSKBufSz)
 {
     CFE_SB_MsgKey_t         MsgKey;
     CFE_SB_MsgId_t          MsgId;
@@ -1344,6 +1456,13 @@ int32  CFE_SB_SendMsgFull(CFE_SB_Msg_t    *MsgPtr,
         {
             continue;
         }/*end if */
+
+        if (!CFE_SB_ValidatePSK(DestPtr->PSKSalt, sizeof(DestPtr->PSKSalt),
+                    DestPtr->PSKHash, sizeof(DestPtr->PSKHash),
+                    PSKBufPtr, PSKBufSz))
+        {
+            continue;
+        }/* end if */
 
         PipeDscPtr = &CFE_SB.PipeTbl[DestPtr->PipeId];
 
@@ -1882,7 +2001,7 @@ int32 CFE_SB_ZeroCopySend(CFE_SB_Msg_t   *MsgPtr,
     Status = CFE_SB_ZeroCopyReleaseDesc(MsgPtr, BufferHandle);
 
     if(Status == CFE_SUCCESS){
-        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ZEROCOPY);
+        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ZEROCOPY,NULL,0);
     }
 
     return Status;
@@ -1901,12 +2020,50 @@ int32 CFE_SB_ZeroCopyPass(CFE_SB_Msg_t   *MsgPtr,
     Status = CFE_SB_ZeroCopyReleaseDesc(MsgPtr, BufferHandle);
 
     if(Status == CFE_SUCCESS){
-        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ZEROCOPY);
+        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ZEROCOPY,NULL,0);
     }
 
     return Status;
 
 }/* end CFE_SB_ZeroCopyPass */
+
+
+/*
+ * Function: CFE_SB_ZeroCopySendPSK - See API and header file for details
+ */
+int32 CFE_SB_ZeroCopySendPSK(CFE_SB_Msg_t   *MsgPtr,
+                          CFE_SB_ZeroCopyHandle_t BufferHandle, uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    int32   Status = 0;
+
+    Status = CFE_SB_ZeroCopyReleaseDesc(MsgPtr, BufferHandle);
+
+    if(Status == CFE_SUCCESS){
+        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_INCREMENT_TLM,CFE_SB_SEND_ZEROCOPY,PSKBufPtr,PSKBufSz);
+    }
+
+    return Status;
+
+}/* end CFE_SB_ZeroCopySendPSK */
+
+
+/*
+ * Function: CFE_SB_ZeroCopyPassPSK - See API and header file for details
+ */
+int32 CFE_SB_ZeroCopyPassPSK(CFE_SB_Msg_t   *MsgPtr,
+                          CFE_SB_ZeroCopyHandle_t BufferHandle, uint8 *PSKBufPtr, uint32 PSKBufSz)
+{
+    int32   Status = 0;
+
+    Status = CFE_SB_ZeroCopyReleaseDesc(MsgPtr, BufferHandle);
+
+    if(Status == CFE_SUCCESS){
+        Status = CFE_SB_SendMsgFull(MsgPtr,CFE_SB_DO_NOT_INCREMENT,CFE_SB_SEND_ZEROCOPY,PSKBufPtr,PSKBufSz);
+    }
+
+    return Status;
+
+}/* end CFE_SB_ZeroCopyPassPSK */
 
 
 /******************************************************************************
